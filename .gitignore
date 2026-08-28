@@ -6,3 +6,8 @@ dist/
 .DS_Store
 *.log
 .cc-history/
+next-env.d.ts
+*.tsbuildinfo
+/test-results/
+/playwright-report/
+/playwright/.cache/
