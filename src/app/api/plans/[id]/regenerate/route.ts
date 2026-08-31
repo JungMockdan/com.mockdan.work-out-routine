@@ -27,6 +27,18 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const plan = await fetchPlanById(sb, id); // RLS로 본인 것만 조회됨
     if (!plan) return NextResponse.json({ error: '계획을 찾을 수 없습니다.' }, { status: 404 });
 
+    // 저장된 프로필(설정 화면에서 수정한 레벨/장비/금기)을 먼저 반영한다 — LocalRepository와 동작 일치
+    const { data: prof } = await sb
+      .from('profiles')
+      .select('level, equipment, avoid_tags')
+      .eq('id', user.id)
+      .maybeSingle();
+    if (prof) {
+      plan.input.level = prof.level as 1 | 2 | 3;
+      plan.input.equipment = (prof.equipment ?? plan.input.equipment) as typeof plan.input.equipment;
+      plan.input.avoidTags = prof.avoid_tags ?? plan.input.avoidTags;
+    }
+
     const body = (await req.json().catch(() => ({}))) as {
       level?: 1 | 2 | 3;
       equipment?: string[];

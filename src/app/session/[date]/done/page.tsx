@@ -257,7 +257,7 @@ export default function SessionDonePage({ params }: { params: Promise<{ date: st
         <button
           type="button"
           onClick={() => router.push('/plan')}
-          className="mt-4 w-full text-center text-xs text-muted underline"
+          className="mt-3 min-h-11 w-full py-3 text-center text-xs text-muted underline"
         >
           기록 없이 나가기 (완료로 저장되지 않습니다)
         </button>

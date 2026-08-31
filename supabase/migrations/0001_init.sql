@@ -60,6 +60,7 @@ create table sessions (
   total_sec     integer not null,
   status        text not null default 'planned' check (status in ('planned','in_progress','done','skipped')),
   completed_at  timestamptz,
+  elapsed_sec   integer,                          -- 실제 소요 시간(완료 시 기록)
   unique (plan_id, date)
 );
 
@@ -101,6 +102,8 @@ create policy profiles_update on profiles for update using (id = auth.uid()) wit
 create policy plans_select on plans for select using (user_id = auth.uid());
 create policy plans_insert on plans for insert with check (user_id = auth.uid());
 create policy plans_update on plans for update using (user_id = auth.uid()) with check (user_id = auth.uid());
+-- 데이터 초기화(/api/reset)용. sessions/session_logs는 ON DELETE CASCADE로 함께 삭제된다.
+create policy plans_delete on plans for delete using (user_id = auth.uid());
 
 -- sessions: 소유 계획을 통해 접근
 create policy sessions_select on sessions for select

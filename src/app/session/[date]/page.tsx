@@ -31,6 +31,8 @@ export default function SessionRunPage({ params }: { params: Promise<{ date: str
   const [session, setSession] = useState<StoredSession | null>(null);
   const [state, setState] = useState<'loading' | 'intro' | 'running' | 'notfound' | 'error'>('loading');
   const [savedProgress, setSavedProgress] = useState<SessionProgress | null>(null);
+  // 시작 버튼(사용자 제스처) 안에서 enable()을 불러야 무음 오디오 폴백이 iOS에서 동작한다
+  const wake = useWakeLock();
 
   useEffect(() => {
     if (!isValidISO(date)) {
@@ -95,9 +97,18 @@ export default function SessionRunPage({ params }: { params: Promise<{ date: str
     );
 
   if (state === 'intro')
-    return <Intro session={session} saved={savedProgress} onStart={() => setState('running')} />;
+    return (
+      <Intro
+        session={session}
+        saved={savedProgress}
+        onStart={() => {
+          void wake.enable(); // 반드시 클릭 핸들러(제스처) 안에서
+          setState('running');
+        }}
+      />
+    );
 
-  return <Runner session={session} saved={savedProgress} />;
+  return <Runner session={session} saved={savedProgress} wake={wake} />;
 }
 
 /* ───────────────────────── 시작 화면 (면책 고지 필수) ───────────────────────── */
@@ -150,10 +161,17 @@ function Intro({
 
 /* ───────────────────────── 실행 화면 본체 ───────────────────────── */
 
-function Runner({ session, saved }: { session: StoredSession; saved: SessionProgress | null }) {
+function Runner({
+  session,
+  saved,
+  wake,
+}: {
+  session: StoredSession;
+  saved: SessionProgress | null;
+  wake: ReturnType<typeof useWakeLock>;
+}) {
   const router = useRouter();
   const steps = useMemo(() => buildSteps(session), [session]);
-  const wake = useWakeLock();
 
   const [runner, setRunner] = useState<RunnerState>(() => {
     const now = Date.now();
@@ -163,6 +181,7 @@ function Runner({ session, saved }: { session: StoredSession; saved: SessionProg
         stepStartedAt: now - saved.stepElapsedSec * 1000,
         pausedAt: null,
         completedEstimatedSec: saved.completedEstimatedSec,
+        actualElapsedSec: saved.actualElapsedSec ?? saved.completedEstimatedSec,
         completedSets: saved.completedSets,
         skipped: saved.skipped,
         finished: false,
@@ -170,6 +189,9 @@ function Runner({ session, saved }: { session: StoredSession; saved: SessionProg
     }
     return initialState(now);
   });
+  // 이벤트 핸들러(pagehide/중단)에서 setState 우회로 최신 상태를 읽기 위한 ref
+  const runnerRef = useRef(runner);
+  runnerRef.current = runner;
   const [now, setNow] = useState(() => Date.now());
   const [confirmQuit, setConfirmQuit] = useState(false);
   const startedRef = useRef(false);
@@ -214,6 +236,8 @@ function Runner({ session, saved }: { session: StoredSession; saved: SessionProg
           stepIndex: st.stepIndex,
           stepElapsedSec: cur ? Math.max(0, ((st.pausedAt ?? at) - st.stepStartedAt) / 1000) : 0,
           completedEstimatedSec: st.completedEstimatedSec,
+          // 현재 스텝 경과는 stepElapsedSec로 복원되므로 여기엔 지나간 스텝 몫만 저장(이중 계상 방지)
+          actualElapsedSec: st.actualElapsedSec,
           completedSets: st.completedSets,
           skipped: st.skipped,
           savedAt: new Date(at).toISOString(),
@@ -228,15 +252,14 @@ function Runner({ session, saved }: { session: StoredSession; saved: SessionProg
 
   // 주기 저장 + 이탈 시 저장
   useEffect(() => {
-    if (runner.finished) return;
-    persistProgress(runner, Date.now());
-  }, [runner.stepIndex, runner.pausedAt, runner.finished, persistProgress, runner]);
+    if (runnerRef.current.finished) return;
+    persistProgress(runnerRef.current, Date.now());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runner.stepIndex, runner.pausedAt, runner.finished, persistProgress]);
   useEffect(() => {
     function onHideOrUnload() {
-      setRunner((prev) => {
-        if (!prev.finished) persistProgress(prev, Date.now());
-        return prev;
-      });
+      const cur = runnerRef.current;
+      if (!cur.finished) persistProgress(cur, Date.now());
     }
     window.addEventListener('pagehide', onHideOrUnload);
     return () => window.removeEventListener('pagehide', onHideOrUnload);
@@ -245,7 +268,8 @@ function Runner({ session, saved }: { session: StoredSession; saved: SessionProg
   // 종료 → 완료 화면으로
   useEffect(() => {
     if (!runner.finished) return;
-    const elapsed = Math.round(totalElapsedSec(steps, runner, Date.now()));
+    // 실제 벽시계 기준 소요 시간 (일시정지 제외) — 예상치 합이 아니라 진짜 경과
+    const elapsed = Math.round(runner.actualElapsedSec);
     const pending: PendingDone = {
       sessionId: session.id,
       date: session.date,
@@ -284,13 +308,18 @@ function Runner({ session, saved }: { session: StoredSession; saved: SessionProg
     setRunner((prev) => fn(steps, prev, n));
   }
 
+  /** 화면에 보이던 스텝과 실제 스텝이 같을 때만 완료 처리 (만료 직후 오클릭 방지) */
+  function actComplete() {
+    const expected = runner.stepIndex;
+    act((s, st, n) => (st.stepIndex === expected ? completeStep(s, st, n) : st));
+  }
+
   function quit() {
     const n = Date.now();
-    setRunner((prev) => {
-      const st = prev.pausedAt == null ? pause(prev, n) : prev;
-      persistProgress(st, n);
-      return st;
-    });
+    const cur = runnerRef.current;
+    const st = cur.pausedAt == null ? pause(cur, n) : cur;
+    persistProgress(st, n);
+    setRunner(st);
     wake.disable();
     router.push(`/plan/${session.date}`);
   }
@@ -306,7 +335,7 @@ function Runner({ session, saved }: { session: StoredSession; saved: SessionProg
           </span>
           <span>예상 종료 {formatClock(eta)}</span>
         </div>
-        <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-line" role="progressbar" aria-valuenow={Math.round(totalRatio * 100)} aria-valuemin={0} aria-valuemax={100}>
+        <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-line" role="progressbar" aria-label="세션 진행률" aria-valuenow={Math.round(totalRatio * 100)} aria-valuemin={0} aria-valuemax={100}>
           <div className="h-full rounded-full bg-brand transition-[width]" style={{ width: `${totalRatio * 100}%` }} />
         </div>
       </header>
@@ -386,10 +415,10 @@ function Runner({ session, saved }: { session: StoredSession; saved: SessionProg
       {/* 하단 컨트롤 */}
       <footer className="sticky bottom-0 border-t border-line bg-surface/95 px-4 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-3 backdrop-blur">
         {confirmQuit ? (
-          <div className="grid gap-2">
+          <div role="alertdialog" aria-label="세션 중단 확인" className="grid gap-2">
             <p className="text-center text-sm">중단할까요? 진행 상황은 저장됩니다.</p>
             <div className="grid grid-cols-2 gap-2">
-              <Button variant="secondary" onClick={() => setConfirmQuit(false)}>
+              <Button variant="secondary" autoFocus onClick={() => setConfirmQuit(false)}>
                 계속하기
               </Button>
               <Button variant="danger" onClick={quit}>
@@ -400,11 +429,11 @@ function Runner({ session, saved }: { session: StoredSession; saved: SessionProg
         ) : (
           <div className="grid grid-cols-[1fr_auto_auto] gap-2">
             {step.kind === 'work' && step.durationSec == null ? (
-              <Button onClick={() => act(completeStep)} disabled={paused}>
+              <Button onClick={actComplete} disabled={paused}>
                 세트 완료
               </Button>
             ) : (
-              <Button variant="secondary" onClick={() => act(completeStep)} disabled={paused}>
+              <Button variant="secondary" onClick={actComplete} disabled={paused}>
                 {step.kind === 'work' ? '이 세트 끝냄' : '건너뛰고 바로 시작'}
               </Button>
             )}
@@ -421,7 +450,7 @@ function Runner({ session, saved }: { session: StoredSession; saved: SessionProg
             type="button"
             onClick={() => act(skipExercise)}
             disabled={paused}
-            className="mt-2 w-full text-center text-xs text-muted underline disabled:opacity-50"
+            className="mt-1 min-h-11 w-full py-3 text-center text-xs text-muted underline disabled:opacity-50"
           >
             이 운동 건너뛰기 (통증이 있으면 건너뛰세요)
           </button>

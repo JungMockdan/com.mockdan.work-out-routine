@@ -130,7 +130,14 @@ export function PageHeader({
 export function Page({ children, footer }: { children: ReactNode; footer?: ReactNode }) {
   return (
     <>
-      <main className="flex-1 px-4 pt-4 pb-[calc(11rem+env(safe-area-inset-bottom))] fade-in">{children}</main>
+      <main
+        className={cx(
+          'flex-1 px-4 pt-4 fade-in',
+          footer ? 'pb-[calc(11rem+env(safe-area-inset-bottom))]' : 'pb-8',
+        )}
+      >
+        {children}
+      </main>
       {footer && (
         <div className="fixed inset-x-0 bottom-0 z-10 mx-auto w-full max-w-[480px] border-t border-line bg-surface/95 px-4 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-3 backdrop-blur">
           {footer}

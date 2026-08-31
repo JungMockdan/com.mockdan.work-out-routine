@@ -107,3 +107,47 @@
 
 ### 확인 방법
 - 키가 없어 라이브 검증 불가 → `tsc --noEmit`·`next build` 통과, e2e 3/3(localStorage 모드) 회귀 통과로 확인. **키 투입 후 해야 할 것**: ① `supabase db push`(또는 SQL 실행) ② seed 스크립트 ③ Authentication→Anonymous sign-ins 활성화 ④ e2e를 Supabase 모드로 1회 수동 검증.
+
+---
+
+## 리뷰 라운드 2 — 4~6단계 다각도 리뷰 + 반박 검증 (Workflow, 에이전트 31개) ✅
+
+4개 렌즈(SPEC 5.1 대조/타이머 정확성/데이터·Supabase/신규 화면 UX·접근성)로 27건 → **21건 확정, 6건 기각**. 전부 반영:
+
+- **[high] plans DELETE RLS 정책 부재** → /api/reset이 Supabase 모드에서 조용히 무동작. `plans_delete` 정책 추가(cascade로 sessions/logs 삭제).
+- **[high] 기록되는 소요 시간이 항상 예상치 합(=totalSec)** → RunnerState에 `actualElapsedSec`(벽시계 기준, 일시정지 제외) 추가, advance/sync에서 실측 누적, 진행 상태 저장·복원에 포함, 완료 기록은 실측 사용. verify-runner에 검증 추가.
+- **[high] Supabase 재생성이 설정 화면의 프로필 변경을 무시**(Local과 불일치) → 재생성 라우트가 profiles 행을 먼저 병합.
+- **[high] 캘린더 진행중/건너뜀 셀 명도 대비 미달** → amber-100/900 + ring, slate-200/600으로 교체, aria-label에 상태 포함.
+- **[med] Supabase에서 elapsed/logs 유실** → sessions.elapsed_sec 컬럼 추가(SPEC 4.3에 없는 스키마 추가 — 기록), 완료 시 기록, done 세션의 session_logs를 읽어 매핑 → 완료 화면 기록 카드가 Supabase 모드에서도 동작.
+- **[med] 계획 완료 순간 모든 조회가 404** → fetchCurrentPlan이 active 없으면 최근 completed 반환, LocalRepository도 abandoned만 제외(캘린더 완료 표시·진도율 유지, SPEC 5).
+- **[med] persistPlan 비원자성** → 새 계획을 비활성으로 생성→세션 성공 후 상태 전환(실패 시 기존 계획 무손상, best-effort 정리).
+- **[med] completeSession 비멱등** → 이미 done이면 로그 중복 없이 반환.
+- **[med] persistRegenerated가 시드만 저장** → level/equipment/avoid_tags 함께 저장.
+- **[med] pagehide/중단 저장이 setState 업데이터 내부** → runnerRef로 직접 저장. syncToNow가 변화 없으면 참조 유지 → localStorage 4회/초 기록 제거.
+- **[med] verify-runner의 reps 검증이 시드에 따라 조용히 생략** → reps 스텝을 반드시 찾아 도달·검증(없으면 FAIL). e2e 아닌 스크립트 레벨에서 확정 검증.
+- **[low]** wakeLock enable을 시작 버튼 제스처 안으로 이동(iOS 오디오 폴백), 카운트다운 만료 직후 오클릭 방지(stepIndex 가드), 건너뛰기·나가기 터치 영역 44px, 중단 확인에 alertdialog+포커스, 세션 진행바 aria-label, footer 없는 페이지 하단 패딩 축소.
+
+확인: `verify.ts`(엔진) · `verify-runner.ts`(14 PASS) · `tsc` · `next build` · e2e 3/3 전부 통과.
+
+---
+
+## 최종 — SPEC 9장 완료 기준 점검
+
+| 기준 | 상태 | 확인 방법 |
+|---|---|---|
+| 5개 목표 임의 조합에도 전 세션 40분 ±2분 | ✅ | `node scripts/verify.ts` — 단일 목표 5종·전체 조합 등 전 시나리오 최대 오차 115초. e2e에서도 화면 표시값 파싱 검증 |
+| 장비 미선택에도 빈 페이즈 블록 없음 | ✅ | `verify.ts` "빈 블록 없음 — 0개" (무장비 입력 시나리오 포함) |
+| 2주 사이클 내 한 운동이 전 세션 반복되지 않음 | ✅ | `verify.ts` — 8세션 중 최대 5회, 고유 51종 사용 |
+| 통증 부위 선택 시 금기 운동 0건 | ✅ | `verify.ts`(knee_pain) + e2e: 저장된 계획 전 세션 blocks 스캔으로 0건 확인 |
+| 같은 입력+시드 → 같은 루틴 (재현성) | ✅ | `verify.ts` 동일 시드 일치·다른 시드 상이. 미리보기→시작 흐름이 같은 시드 재생성으로 이 성질을 사용 |
+| 실행 타이머가 백그라운드 복귀 후 밀리지 않음 | ✅ | `verify-runner.ts` 300초 점프 무손실 + e2e에서 Date.now 90초 점프 후 visibilitychange 재계산 확인. 경과는 절대 시각 기준, setInterval은 표시용 |
+| iPhone Safari / Android Chrome 실기기 전 과정 | ⬜ **사람 필요** | 코드는 대응 완료(wakeLock+오디오 폴백, visibilitychange, 절대시각). 자동화는 Chromium+iPhone 뷰포트까지 — 실기기 검증은 기기가 필요 |
+| 운동 56종 전문가 검수(reviewed_by/at) | ⬜ **사람 필요** | 스키마에 컬럼 준비됨. HANDOFF D-1 그대로: 오픈 전 물리치료사/교정운동 전문가 검수 필수 |
+| 면책 고지가 온보딩·세션 시작 화면 노출 | ✅ | e2e 2곳 모두 문구 어서션(`의학적 진단·치료가 아닙니다`) — 온보딩 미리보기 + 세션 인트로 |
+
+## 최종 요약
+
+- **완료**: 1~7단계 전부(스캐폴딩 → 온보딩 → 미리보기 → 캘린더/상세 → 실행 화면 → Supabase 코드 경로 → 완료/기록/진도율 → PWA). 리뷰 워크플로우 2회(에이전트 75개, 발견 67건 → 반박 검증 후 확정 51건 전부 수정).
+- **동작 모드**: localStorage 모드로 완전 동작(e2e 3/3). Supabase는 키 투입 시 자동 전환 — 남은 수동 절차: 스키마 적용 → 시드 적재 → Anonymous sign-ins 활성화 → 1회 수동 검증.
+- **배포**: Vercel 미로그인으로 생략(결정사항). `next build` 통과 상태 — `vercel login` 후 `vercel` 한 번이면 됨.
+- **사람이 해야 할 일**: ① 실기기 검증 ② 운동 DB 전문가 검수 ③ Supabase/Vercel 계정 절차 ④ 사양 편차 사인오프(기간 프리셋 칩, 온보딩 상태의 Zustand 사용, sessions.elapsed_sec 컬럼, /api/profile·reset·status 라우트).

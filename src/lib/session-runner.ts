@@ -92,6 +92,8 @@ export interface RunnerState {
   pausedAt: number | null;
   /** 지나간 스텝들의 예상 소요 합(초) — 진행률 계산용 */
   completedEstimatedSec: number;
+  /** 지나간 스텝들의 실제 소요 합(초) — 완료 기록(elapsedSec)용. 일시정지 시간 제외 */
+  actualElapsedSec: number;
   /** 운동별 완료 세트 수 */
   completedSets: Record<string, number>;
   /** 건너뛴 운동 id */
@@ -105,6 +107,7 @@ export function initialState(now: number, stepIndex = 0): RunnerState {
     stepStartedAt: now,
     pausedAt: null,
     completedEstimatedSec: 0,
+    actualElapsedSec: 0,
     completedSets: {},
     skipped: [],
     finished: false,
@@ -139,6 +142,7 @@ function advanceInPlace(steps: Step[], st: RunnerState, now: number, credit: boo
   if (!step) return;
   if (credit) creditSet(st, step);
   st.completedEstimatedSec += step.estimatedSec;
+  st.actualElapsedSec += Math.max(0, (now - st.stepStartedAt) / 1000);
   if (st.stepIndex + 1 >= steps.length) {
     st.finished = true;
     st.stepIndex = steps.length;
@@ -155,6 +159,7 @@ function advanceInPlace(steps: Step[], st: RunnerState, now: number, credit: boo
 export function syncToNow(steps: Step[], prev: RunnerState, now: number): RunnerState {
   if (prev.finished || prev.pausedAt != null) return prev;
   const st: RunnerState = { ...prev };
+  let advanced = false;
   let guard = steps.length + 4;
   while (!st.finished && guard-- > 0) {
     const step = steps[st.stepIndex];
@@ -164,6 +169,8 @@ export function syncToNow(steps: Step[], prev: RunnerState, now: number): Runner
     // 이 스텝은 endAt에 끝났다 — 다음 스텝은 endAt부터 시작한 것으로 계산
     creditSet(st, step);
     st.completedEstimatedSec += step.estimatedSec;
+    st.actualElapsedSec += step.durationSec;
+    advanced = true;
     if (st.stepIndex + 1 >= steps.length) {
       st.finished = true;
       st.stepIndex = steps.length;
@@ -173,7 +180,8 @@ export function syncToNow(steps: Step[], prev: RunnerState, now: number): Runner
       st.stepStartedAt = endAt;
     }
   }
-  return st;
+  // 아무 스텝도 넘기지 않았으면 참조를 유지해 불필요한 리렌더/저장을 막는다
+  return advanced ? st : prev;
 }
 
 /** reps형 work의 수동 완료 (또는 카운트다운 스텝 조기 완료) */

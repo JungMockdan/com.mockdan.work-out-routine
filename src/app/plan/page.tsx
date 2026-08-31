@@ -105,7 +105,7 @@ export default function PlanCalendarPage() {
             );
 
             return s ? (
-              <Link key={iso} href={`/plan/${iso}`} aria-label={`${day}일 ${FOCUS_LABEL[s.focus]} 루틴${s.status === 'done' ? ' (완료)' : ''}`}>
+              <Link key={iso} href={`/plan/${iso}`} aria-label={`${day}일 ${FOCUS_LABEL[s.focus]} 루틴 · ${statusLabel(s)}`}>
                 {cell}
               </Link>
             ) : (
@@ -130,13 +130,26 @@ export default function PlanCalendarPage() {
 function statusStyle(s: StoredSession): string {
   switch (s.status) {
     case 'done':
-      return 'bg-emerald-500 text-white';
+      return 'bg-emerald-600 text-white';
     case 'in_progress':
-      return 'bg-amber-400 text-white';
+      return 'bg-amber-100 text-amber-900 ring-1 ring-amber-500';
     case 'skipped':
-      return 'bg-slate-300 text-white line-through';
+      return 'bg-slate-200 text-slate-600';
     default:
       return 'bg-brand text-white';
+  }
+}
+
+function statusLabel(s: StoredSession): string {
+  switch (s.status) {
+    case 'done':
+      return '완료';
+    case 'in_progress':
+      return '진행 중';
+    case 'skipped':
+      return '건너뜀';
+    default:
+      return '예정';
   }
 }
 

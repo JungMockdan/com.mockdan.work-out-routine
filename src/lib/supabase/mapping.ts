@@ -1,6 +1,6 @@
 /** Supabase 행(snake_case) ↔ 앱 모델(camelCase) 매핑 */
 import type { Block, PlanInput } from '../engine';
-import type { PlanStatus, SessionStatus, StoredPlan, StoredSession } from '../types';
+import type { ExerciseLog, PlanStatus, SessionStatus, StoredPlan, StoredSession } from '../types';
 
 export interface PlanRow {
   id: string;
@@ -29,6 +29,26 @@ export interface SessionRow {
   total_sec: number;
   status: SessionStatus;
   completed_at: string | null;
+  elapsed_sec: number | null;
+}
+
+export interface LogRow {
+  session_id: string;
+  exercise_id: string;
+  completed_sets: number;
+  rpe: number | null;
+  pain_flag: boolean;
+  note: string | null;
+}
+
+export function logFromRow(row: LogRow): ExerciseLog {
+  return {
+    exerciseId: row.exercise_id,
+    completedSets: row.completed_sets,
+    rpe: row.rpe ?? undefined,
+    painFlag: row.pain_flag,
+    note: row.note ?? undefined,
+  };
 }
 
 export function planInputFromRow(row: PlanRow): PlanInput {
@@ -45,7 +65,7 @@ export function planInputFromRow(row: PlanRow): PlanInput {
   };
 }
 
-export function sessionFromRow(row: SessionRow): StoredSession {
+export function sessionFromRow(row: SessionRow, logs?: LogRow[]): StoredSession {
   const blocks = row.blocks;
   const totalSec = row.total_sec;
   return {
@@ -60,16 +80,23 @@ export function sessionFromRow(row: SessionRow): StoredSession {
     deltaSec: 0, // 행에는 저장하지 않음 — 목표 대비 오차는 표시용이라 plan.targetSec에서 계산 가능
     status: row.status,
     completedAt: row.completed_at ?? undefined,
+    elapsedSec: row.elapsed_sec ?? undefined,
+    logs: logs && logs.length > 0 ? logs.map(logFromRow) : undefined,
   };
 }
 
-export function planFromRows(plan: PlanRow, sessions: SessionRow[], restDates: string[] = []): StoredPlan {
+export function planFromRows(
+  plan: PlanRow,
+  sessions: SessionRow[],
+  restDates: string[] = [],
+  logsBySession?: Map<string, LogRow[]>,
+): StoredPlan {
   const targetSec = plan.session_minutes * 60;
   const mapped = sessions
     .slice()
     .sort((a, b) => (a.date < b.date ? -1 : 1))
     .map((s) => {
-      const m = sessionFromRow(s);
+      const m = sessionFromRow(s, logsBySession?.get(s.id));
       m.deltaSec = m.totalSec - targetSec;
       return m;
     });
@@ -113,5 +140,6 @@ export function sessionRowValues(s: StoredSession): Omit<SessionRow, 'completed_
     blocks: s.blocks,
     total_sec: s.totalSec,
     status: s.status,
+    elapsed_sec: s.elapsedSec ?? null,
   };
 }

@@ -57,6 +57,8 @@ export interface SessionProgress {
   stepElapsedSec: number;
   /** 지나간 스텝들의 예상 소요 합(초) */
   completedEstimatedSec: number;
+  /** 지나간 스텝들의 실제 소요 합(초) — 완료 기록용 */
+  actualElapsedSec?: number;
   completedSets: Record<string, number>;
   skipped: string[];
   savedAt: string;

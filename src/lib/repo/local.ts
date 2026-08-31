@@ -36,8 +36,9 @@ export class LocalRepository implements Repository {
   readonly kind = 'local' as const;
 
   async getCurrentPlan(): Promise<StoredPlan | null> {
+    // completed 계획도 읽기용으로 반환한다 — 캘린더의 완료 표시·진도율이 계속 보여야 한다 (SPEC 5)
     const p = read();
-    return p && p.status === 'active' ? p : null;
+    return p && p.status !== 'abandoned' ? p : null;
   }
 
   async createPlan(input: PlanInput, opts?: { persist?: boolean }): Promise<StoredPlan> {

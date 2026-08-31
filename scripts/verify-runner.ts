@@ -85,21 +85,45 @@ console.log('\n■ 2. 백그라운드 점프(절대 시각) 보정');
 
 console.log('\n■ 3. reps형 수동 완료');
 {
-  const t0 = 2_000_000;
-  let st = initialState(t0);
-  // transition(20s) 끝까지 보내기
-  st = syncToNow(steps, st, t0 + 20_000);
-  const cur = steps[st.stepIndex];
-  if (cur && cur.durationSec == null) {
+  // 시드에 상관없이 반드시 reps 스텝을 찾아 검증한다 (없으면 FAIL)
+  let found: { steps: ReturnType<typeof buildSteps>; idx: number } | null = null;
+  for (const input of INPUTS) {
+    const pl = buildPlan(input, EXERCISES);
+    for (const s of pl.sessions) {
+      const ss = buildSteps(s);
+      const i = ss.findIndex((x) => x.kind === 'work' && x.durationSec == null);
+      if (i >= 0) {
+        found = { steps: ss, idx: i };
+        break;
+      }
+    }
+    if (found) break;
+  }
+  check('reps형 스텝이 존재', found != null);
+  if (found) {
+    const t0 = 2_000_000;
+    let now = t0;
+    let st = initialState(t0);
+    let guard = found.steps.length + 8;
+    // 카운트다운은 시간을 흘려보내고, 중간에 만나는 reps는 수동 완료하며 목표 스텝까지 전진
+    while (st.stepIndex < found.idx && guard-- > 0) {
+      const cur = found.steps[st.stepIndex];
+      if (cur.durationSec != null) {
+        now += cur.durationSec * 1000;
+        st = syncToNow(found.steps, st, now);
+      } else {
+        now += 30_000;
+        st = completeStep(found.steps, st, now);
+      }
+    }
+    const cur = found.steps[st.stepIndex];
+    check('reps 스텝 도달', cur != null && cur.durationSec == null, `stepIndex=${st.stepIndex}/${found.idx}`);
     const before = st.completedSets[cur.exerciseId] ?? 0;
-    // 1시간이 지나도 자동 진행 없음
-    const stale = syncToNow(steps, st, t0 + 3_620_000);
-    check('reps 스텝은 자동 진행되지 않음', stale.stepIndex === st.stepIndex);
-    const done = completeStep(steps, st, t0 + 60_000);
+    const stale = syncToNow(found.steps, st, now + 3_600_000);
+    check('reps 스텝은 1시간 방치해도 자동 진행 없음', stale.stepIndex === st.stepIndex);
+    const done = completeStep(found.steps, st, now + 60_000);
     check('수동 완료 시 세트 +1', (done.completedSets[cur.exerciseId] ?? 0) === before + 1);
     check('수동 완료 시 다음 스텝으로', done.stepIndex === st.stepIndex + 1);
-  } else {
-    check('첫 운동이 reps형이 아니라 hold형 — 시나리오 생략(정상)', true, `kind=${cur?.kind}`);
   }
 }
 
@@ -129,6 +153,9 @@ console.log('\n■ 5. 운동 건너뛰기');
     .reduce((n, s) => n + s.estimatedSec, 0);
   check('건너뛴 시간이 경과로 계상됨(진행률 유지)', st.completedEstimatedSec === skippedEst,
     `completed=${st.completedEstimatedSec}s, expected=${skippedEst}s`);
+  // 실제 소요(actualElapsedSec)는 벽시계 기준 1초만 계상되어야 한다 (예상치가 아니라)
+  check('건너뛰기 실제 소요는 벽시계 기준(1초)', Math.abs(st.actualElapsedSec - 1) < 0.01,
+    `actual=${st.actualElapsedSec}s`);
 }
 
 console.log(failures === 0 ? '\n✅ 전체 통과' : `\n❌ ${failures}건 실패`);
