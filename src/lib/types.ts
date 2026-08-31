@@ -48,18 +48,27 @@ export interface CompletePayload {
   logs: ExerciseLog[];
 }
 
-/** 실행 화면의 중단/복원용 진행 상태 (localStorage) */
+/** 실행 화면의 중단/복원용 진행 상태 (localStorage). 재진입 시 일시정지 상태로 복원된다. */
 export interface SessionProgress {
   sessionId: string;
   date: string;
-  blockIndex: number;
-  itemIndex: number;
-  setIndex: number;
-  /** 세션 시작 후 누적 경과(초) — 일시정지 구간 제외 */
-  elapsedSec: number;
+  stepIndex: number;
+  /** 현재 스텝에서 흐른 시간(초) */
+  stepElapsedSec: number;
+  /** 지나간 스텝들의 예상 소요 합(초) */
+  completedEstimatedSec: number;
   completedSets: Record<string, number>;
   skipped: string[];
   savedAt: string;
+}
+
+/** 실행 종료 → 완료 화면으로 넘기는 임시 데이터 (localStorage) */
+export interface PendingDone {
+  sessionId: string;
+  date: string;
+  elapsedSec: number;
+  completedSets: Record<string, number>;
+  skipped: string[];
 }
 
 export function progressOf(plan: StoredPlan): { done: number; total: number; ratio: number } {

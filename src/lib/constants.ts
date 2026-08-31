@@ -76,4 +76,5 @@ export const STORAGE_KEYS = {
   plan: 'moccu.plan.v1',
   onboarding: 'moccu.onboarding.v1',
   progress: (date: string) => `moccu.progress.${date}`,
+  pendingDone: (date: string) => `moccu.pending-done.${date}`,
 } as const;
