@@ -19,15 +19,14 @@ export default function ProfilePage() {
       <PageHeader title="레벨 · 장비" back="/onboarding/concerns" step={{ current: 2, total: 4 }} />
       <Page footer={<Button full onClick={() => router.push('/onboarding/schedule')}>다음</Button>}>
         <SectionTitle sub="세트 수와 휴식 시간이 레벨에 맞게 조정됩니다.">운동 경험은 어느 정도인가요?</SectionTitle>
-        <div role="radiogroup" aria-label="레벨" className="grid gap-2">
+        <div role="group" aria-label="레벨" className="grid gap-2">
           {LEVEL_OPTIONS.map((o) => {
             const on = level === o.id;
             return (
               <button
                 key={o.id}
                 type="button"
-                role="radio"
-                aria-checked={on}
+                aria-pressed={on}
                 onClick={() => setLevel(o.id)}
                 className={cx(
                   'flex items-start gap-3 rounded-2xl border p-4 text-left transition-colors',

@@ -18,7 +18,7 @@ export default defineConfig({
     timezoneId: 'Asia/Seoul',
   },
   webServer: {
-    command: 'npx next start -p 3100',
+    command: 'npm run build && npx next start -p 3100',
     url: 'http://localhost:3100',
     reuseExistingServer: true,
     timeout: 120_000,

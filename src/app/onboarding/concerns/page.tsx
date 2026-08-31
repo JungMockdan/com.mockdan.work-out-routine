@@ -65,7 +65,7 @@ export default function ConcernsPage() {
           <Card className="mt-6">
             <h3 className="font-bold">우선순위</h3>
             <p className="mt-1 text-sm text-muted">
-              길게 눌러 끌어서 순서를 바꾸세요. 1순위 목표에 시간이 가장 많이 배분됩니다.
+              손잡이(⋮⋮)를 끌거나 화살표 버튼으로 순서를 바꾸세요. 1순위 목표에 시간이 가장 많이 배분됩니다.
             </p>
             <PriorityList items={concerns} onReorder={reorder} />
           </Card>
@@ -79,6 +79,13 @@ export default function ConcernsPage() {
 function PriorityList({ items, onReorder }: { items: Concern[]; onReorder: (from: number, to: number) => void }) {
   const listRef = useRef<HTMLUListElement>(null);
   const [drag, setDrag] = useState<{ from: number; over: number; y: number } | null>(null);
+  const [announce, setAnnounce] = useState('');
+
+  function move(from: number, to: number) {
+    onReorder(from, to);
+    const c = items[from];
+    if (c != null) setAnnounce(`${CONCERN_LABEL_KO[c]}, ${to + 1}순위로 이동`);
+  }
 
   function indexAtY(clientY: number): number {
     const list = listRef.current;
@@ -101,11 +108,13 @@ function PriorityList({ items, onReorder }: { items: Concern[]; onReorder: (from
     setDrag({ ...drag, over: indexAtY(e.clientY), y: e.clientY });
   }
   function onPointerUp() {
-    if (drag && drag.from !== drag.over) onReorder(drag.from, drag.over);
+    if (drag && drag.from !== drag.over) move(drag.from, drag.over);
     setDrag(null);
   }
 
   return (
+    <>
+    <p role="status" aria-live="polite" className="sr-only">{announce}</p>
     <ul ref={listRef} className="mt-3 grid gap-2 select-none" aria-label="우선순위 목록">
       {items.map((c, i) => {
         const isDragging = drag?.from === i;
@@ -139,7 +148,7 @@ function PriorityList({ items, onReorder }: { items: Concern[]; onReorder: (from
               type="button"
               aria-label={`${CONCERN_LABEL_KO[c]} 위로`}
               disabled={i === 0}
-              onClick={() => onReorder(i, i - 1)}
+              onClick={() => move(i, i - 1)}
               className="flex size-9 items-center justify-center rounded-lg text-ink disabled:text-slate-300 hover:bg-slate-100"
             >
               ▲
@@ -148,7 +157,7 @@ function PriorityList({ items, onReorder }: { items: Concern[]; onReorder: (from
               type="button"
               aria-label={`${CONCERN_LABEL_KO[c]} 아래로`}
               disabled={i === items.length - 1}
-              onClick={() => onReorder(i, i + 1)}
+              onClick={() => move(i, i + 1)}
               className="flex size-9 items-center justify-center rounded-lg text-ink disabled:text-slate-300 hover:bg-slate-100"
             >
               ▼
@@ -157,5 +166,6 @@ function PriorityList({ items, onReorder }: { items: Concern[]; onReorder: (from
         );
       })}
     </ul>
+    </>
   );
 }

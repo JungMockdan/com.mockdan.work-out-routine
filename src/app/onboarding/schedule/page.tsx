@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { eachDate, weekdayPattern } from '@/lib/engine';
 import { DAYS_PER_WEEK_OPTIONS } from '@/lib/constants';
@@ -22,6 +22,16 @@ export default function SchedulePage() {
   const daysPerWeek = useOnboarding((s) => s.daysPerWeek);
   const sessionMinutes = useOnboarding((s) => s.sessionMinutes);
   const setSchedule = useOnboarding((s) => s.setSchedule);
+
+  // 저장돼 있던 시작일이 과거면 오늘로 당긴다 (persist 복원 직후 포함)
+  useEffect(() => {
+    const today = todayISO();
+    if (isValidISO(startDate) && startDate < today) {
+      const patch: { startDate: string; endDate?: string } = { startDate: today };
+      if (!isValidISO(endDate) || endDate < today) patch.endDate = shiftISO(today, 27);
+      setSchedule(patch);
+    }
+  }, [startDate, endDate, setSchedule]);
 
   const valid = isValidISO(startDate) && isValidISO(endDate) && endDate >= startDate;
   const summary = useMemo(() => {
@@ -87,15 +97,14 @@ export default function SchedulePage() {
         <SectionTitle sub="요일은 횟수에 따라 자동으로 정해집니다.">
           <span className="mt-8 block">주당 운동 횟수</span>
         </SectionTitle>
-        <div role="radiogroup" aria-label="주당 횟수" className="grid grid-cols-2 gap-2">
+        <div role="group" aria-label="주당 횟수" className="grid grid-cols-2 gap-2">
           {DAYS_PER_WEEK_OPTIONS.map((o) => {
             const on = daysPerWeek === o.id;
             return (
               <button
                 key={o.id}
                 type="button"
-                role="radio"
-                aria-checked={on}
+                aria-pressed={on}
                 onClick={() => setSchedule({ daysPerWeek: o.id })}
                 className={cx(
                   'rounded-2xl border p-3 text-left transition-colors',
@@ -122,7 +131,7 @@ export default function SchedulePage() {
           >
             −
           </button>
-          <div className="flex-1 text-center">
+          <div className="flex-1 text-center" role="status" aria-live="polite">
             <span className="text-3xl font-extrabold">{sessionMinutes}</span>
             <span className="ml-1 text-muted">분</span>
           </div>

@@ -17,7 +17,6 @@ export default function PreviewPage() {
   const [plan, setPlan] = useState<StoredPlan | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
-  const [agreed, setAgreed] = useState(false);
   const requested = useRef(false);
 
   const generate = useCallback(async () => {
@@ -60,25 +59,9 @@ export default function PreviewPage() {
       <Page
         footer={
           plan && first ? (
-            <div className="grid gap-2">
-              <label className="flex items-start gap-2 text-xs text-muted">
-                <input
-                  type="checkbox"
-                  checked={agreed}
-                  onChange={(e) => setAgreed(e.target.checked)}
-                  className="mt-0.5 size-4 accent-brand"
-                />
-                <span>위 고지를 읽고 이해했으며, 통증이 생기면 즉시 중단할 것에 동의합니다.</span>
-              </label>
-              <div className="grid grid-cols-[auto_1fr] gap-2">
-                <Button variant="secondary" onClick={generate} disabled={starting} aria-label="다른 조합으로 다시 생성">
-                  다시 조합
-                </Button>
-                <Button onClick={start} disabled={!agreed || starting}>
-                  {starting ? '저장 중…' : '이 계획 시작하기'}
-                </Button>
-              </div>
-            </div>
+            <Button onClick={start} disabled={starting} full>
+              {starting ? '저장 중…' : '이 계획 시작하기'}
+            </Button>
           ) : undefined
         }
       >

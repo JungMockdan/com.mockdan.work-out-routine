@@ -189,13 +189,12 @@ export default function SessionDonePage({ params }: { params: Promise<{ date: st
         <Card>
           <h3 className="font-bold">오늘 운동이 얼마나 힘들었나요? (RPE)</h3>
           <p className="mt-1 text-xs text-muted">1 = 매우 쉬움 · 10 = 한계</p>
-          <div className="mt-3 grid grid-cols-5 gap-1.5" role="radiogroup" aria-label="자각 강도">
+          <div className="mt-3 grid grid-cols-5 gap-1.5" role="group" aria-label="자각 강도">
             {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
               <button
                 key={n}
                 type="button"
-                role="radio"
-                aria-checked={rpe === n}
+                aria-pressed={rpe === n}
                 onClick={() => setRpe(n)}
                 className={cx(
                   'min-h-11 rounded-lg border text-sm font-semibold',

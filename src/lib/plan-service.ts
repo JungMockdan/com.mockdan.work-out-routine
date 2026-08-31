@@ -2,7 +2,7 @@
  * 계획 생성/재생성 서비스. 서버(API 라우트)에서만 엔진을 실행한다.
  * 엔진 출력 blocks는 그대로 스냅샷으로 저장 모델에 복사된다.
  */
-import { buildPlan, ALL_CONCERNS, type Concern, type Equipment, type PlanInput } from './engine';
+import { buildPlan, parseDate, ALL_CONCERNS, type Concern, type Equipment, type PlanInput } from './engine';
 import { EXERCISES } from '@/data/exercises';
 import type { StoredPlan, StoredSession } from './types';
 import { isValidISO } from './dates';
@@ -22,6 +22,8 @@ export function parsePlanInput(raw: unknown): PlanInput {
   const endDate = String(r.endDate ?? '');
   if (!isValidISO(startDate) || !isValidISO(endDate)) throw new PlanInputError('날짜 형식이 올바르지 않습니다.');
   if (endDate < startDate) throw new PlanInputError('종료일이 시작일보다 빠릅니다.');
+  const spanDays = (parseDate(endDate).getTime() - parseDate(startDate).getTime()) / 86_400_000 + 1;
+  if (spanDays > 366) throw new PlanInputError('기간은 최대 1년(366일)까지 가능합니다.');
 
   const daysPerWeek = Number(r.daysPerWeek);
   if (![2, 3, 4, 5].includes(daysPerWeek)) throw new PlanInputError('주당 횟수는 2~5회여야 합니다.');
@@ -44,7 +46,7 @@ export function parsePlanInput(raw: unknown): PlanInput {
   const equipment = equipmentRaw.filter((e): e is Equipment => VALID_EQUIPMENT.includes(e as Equipment));
 
   const avoidRaw = Array.isArray(r.avoidTags) ? r.avoidTags : [];
-  const avoidTags = avoidRaw.filter((t): t is string => typeof t === 'string' && t.length <= 40);
+  const avoidTags = avoidRaw.filter((t): t is string => typeof t === 'string' && t.length <= 40).slice(0, 20);
 
   const seed = r.seed == null ? undefined : Number(r.seed);
   if (seed != null && !Number.isInteger(seed)) throw new PlanInputError('시드는 정수여야 합니다.');

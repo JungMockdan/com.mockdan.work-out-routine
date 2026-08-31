@@ -99,6 +99,8 @@ export const useOnboarding = create<OnboardingState>()(
     {
       name: STORAGE_KEYS.onboarding,
       storage: createJSONStorage(() => localStorage),
+      // SSR 마크업과 첫 클라이언트 렌더가 일치하도록, 저장값 복원은 useEffect에서 수행한다(AppShell)
+      skipHydration: true,
       partialize: (s) => ({
         concerns: s.concerns,
         level: s.level,

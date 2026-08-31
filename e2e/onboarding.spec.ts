@@ -30,7 +30,7 @@ test.describe('온보딩 → 미리보기', () => {
 
     // 2) 레벨 · 장비 · 통증
     await expect(page).toHaveURL(/\/onboarding\/profile/);
-    await page.getByRole('radio', { name: /중급/ }).click();
+    await page.getByRole('group', { name: '레벨' }).getByRole('button', { name: /중급/ }).click();
     await page.getByRole('button', { name: '밴드', exact: true }).click();
     await page.getByRole('button', { name: '폼롤러', exact: true }).click();
     await page.getByRole('button', { name: /무릎 통증/ }).click();
@@ -39,10 +39,10 @@ test.describe('온보딩 → 미리보기', () => {
 
     // 3) 기간
     await expect(page).toHaveURL(/\/onboarding\/schedule/);
-    await page.locator('input[type=date]').nth(0).fill('2026-09-01');
+    await page.getByLabel('시작일').fill('2026-09-01');
     await page.getByRole('button', { name: '4주' }).click();
-    await expect(page.locator('input[type=date]').nth(1)).toHaveValue('2026-09-28');
-    await page.getByRole('radio', { name: /주 4회/ }).click();
+    await expect(page.getByLabel('종료일')).toHaveValue('2026-09-28');
+    await page.getByRole('button', { name: /주 4회/ }).click();
     await expect(page.getByText('16회')).toBeVisible();
     await shot(page, '04-schedule');
     await page.getByRole('button', { name: '루틴 생성하기' }).click();
@@ -68,7 +68,6 @@ test.describe('온보딩 → 미리보기', () => {
     await shot(page, '05-preview');
 
     // 5) 시작 → 캘린더로 이동, 홈에 계획이 보임
-    await page.getByRole('checkbox').check();
     await page.getByRole('button', { name: '이 계획 시작하기' }).click();
     await expect(page).toHaveURL(/\/plan/, { timeout: 30_000 });
     const stored = await page.evaluate(() => localStorage.getItem('moccu.plan.v1'));

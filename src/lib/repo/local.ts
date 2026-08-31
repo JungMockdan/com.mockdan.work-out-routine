@@ -78,6 +78,15 @@ export class LocalRepository implements Repository {
     const p = read();
     if (!p || p.id !== planId) throw new Error('계획을 찾을 수 없습니다.');
     const next = await postJSON<StoredPlan>('/api/plans/regenerate', { plan: p });
+    // 요청 중 다른 탭/화면에서 바뀐 상태를 덮어쓰지 않도록 병합 후 저장한다
+    const latest = read();
+    if (latest && latest.id === planId) {
+      const byDate = new Map(latest.sessions.map((s) => [s.date, s]));
+      next.sessions = next.sessions.map((s) => {
+        const cur = byDate.get(s.date);
+        return cur && (cur.status === 'done' || cur.status === 'skipped' || cur.status === 'in_progress') ? cur : s;
+      });
+    }
     write(next);
     return next;
   }

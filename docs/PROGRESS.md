@@ -67,3 +67,26 @@
 
 ### 남은 것
 - Supabase 연동(6단계), PWA 마무리·배포(7단계 잔여), 리뷰 워크플로우 결과 반영.
+
+---
+
+## 리뷰 라운드 1 — 1~3단계 다각도 리뷰 + 반박 검증 (Workflow, 에이전트 44개) ✅
+
+4개 렌즈(SPEC 대조/정확성/모바일 UX·접근성/PWA·빌드)로 40건 발견 → 독립 에이전트 반박 검증 → **30건 확정, 10건 기각**. 확정 30건 전부 반영:
+
+- **[high] /api/plans/regenerate 무검증 입력**: parsePlanInput 재사용(400), 세션 스냅샷 형태 검사 + 400개 상한. 계획 기간도 최대 366일, avoidTags 20개 상한(plan-service).
+- **[high] maximumScale:1 핀치줌 차단(WCAG 1.4.4)**: 제거.
+- **[high] role=radio 키보드 시맨틱 불일치**: 전 화면(프로필/일정/설정/RPE) aria-pressed + role=group으로 교체, e2e 셀렉터 갱신.
+- **[high] 고정 푸터가 본문 가림**: 본문 하단 패딩 11rem+safe-area로 확대.
+- **[high] SW가 404/500 응답을 캐시**: res.ok 가드(페이지·정적 둘 다), 오프라인 폴백 프리캐시 실패 시 install 실패로 재시도, PAGE_CACHE 30개 제한, manifest cache-first 편입 (sw v2).
+- **[med] zustand persist 하이드레이션 미스매치**: skipHydration + AppShell에서 rehydrate.
+- **[med] 과거 시작일 통과**: 일정 화면에서 오늘로 클램프.
+- **[med] 경고색 대비 미달**: #d97706→#b45309. 진행바 aria-label, 단계 표시 role=img, 스테퍼 role=status, 재정렬 aria-live 안내, 드래그 안내 문구 수정.
+- **[med] engines/Node 22.6 불일치**: >=22.18.0. Playwright webServer가 build 후 start. tsconfig include에 next.config.ts/playwright.config.ts 추가. deprecated `next lint` 스크립트 제거. e2e 날짜 입력을 getByLabel로. LocalRepository.regenerate 병합 저장(멀티탭 레이스).
+- **[spec-gap] 사양에 없는 기능 제거**: 미리보기의 동의 체크박스·'다시 조합' 버튼 삭제 (고지는 SPEC 5.2대로 표시 유지).
+
+**사인오프 필요한 잔여 편차 2건** (기능 삭제 대신 기록 선택):
+1. 일정 화면의 2/4/8/12주 프리셋 칩 — 데이트피커 입력 편의로 유지. SPEC 5에 추가 기재 권장.
+2. Zustand를 온보딩 상태에 사용 (SPEC 7은 "실행 화면 타이머 상태만"으로 한정; 실행 화면은 현재 useState 기반 순수 상태 머신) — SPEC 7 문구 갱신 권장.
+
+확인: `tsc --noEmit` / `next build` / e2e 3/3 PASS / `verify.ts`·`verify-runner.ts` PASS.

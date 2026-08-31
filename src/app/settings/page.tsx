@@ -174,13 +174,12 @@ function ProfileEditor({
       <h2 className="font-bold">프로필</h2>
 
       <p className="mt-3 text-xs font-semibold text-muted">레벨</p>
-      <div className="mt-1.5 grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="레벨">
+      <div className="mt-1.5 grid grid-cols-3 gap-1.5" role="group" aria-label="레벨">
         {LEVEL_OPTIONS.map((o) => (
           <button
             key={o.id}
             type="button"
-            role="radio"
-            aria-checked={level === o.id}
+            aria-pressed={level === o.id}
             onClick={() => setLevel(o.id)}
             className={cx(
               'min-h-10 rounded-lg border text-sm font-semibold',

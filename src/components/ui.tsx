@@ -113,7 +113,7 @@ export function PageHeader({
         <div className="flex min-w-10 items-center justify-end">{right}</div>
       </div>
       {step && (
-        <div className="flex gap-1 px-4 pb-2" aria-label={`${step.total}단계 중 ${step.current}단계`}>
+        <div className="flex gap-1 px-4 pb-2" role="img" aria-label={`${step.total}단계 중 ${step.current}단계`}>
           {Array.from({ length: step.total }, (_, i) => (
             <span
               key={i}
@@ -130,7 +130,7 @@ export function PageHeader({
 export function Page({ children, footer }: { children: ReactNode; footer?: ReactNode }) {
   return (
     <>
-      <main className="flex-1 px-4 pb-32 pt-4 fade-in">{children}</main>
+      <main className="flex-1 px-4 pt-4 pb-[calc(11rem+env(safe-area-inset-bottom))] fade-in">{children}</main>
       {footer && (
         <div className="fixed inset-x-0 bottom-0 z-10 mx-auto w-full max-w-[480px] border-t border-line bg-surface/95 px-4 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-3 backdrop-blur">
           {footer}
@@ -180,6 +180,7 @@ export function ProgressBar({ ratio, label, className }: { ratio: number; label?
       <div
         className="h-2 w-full overflow-hidden rounded-full bg-line"
         role="progressbar"
+        aria-label={label ?? '진행률'}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={pct}

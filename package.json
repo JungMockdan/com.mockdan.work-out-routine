@@ -8,10 +8,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
     "verify": "node scripts/verify.ts",
     "typecheck": "tsc --noEmit",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "verify:runner": "node scripts/verify-runner.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
@@ -24,7 +24,7 @@
     "typescript": "^5.7.0"
   },
   "engines": {
-    "node": ">=22.6.0"
+    "node": ">=22.18.0"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.5",

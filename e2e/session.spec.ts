@@ -67,7 +67,6 @@ test.describe('실행 화면', () => {
     await page.evaluate(() => {
       const realNow = Date.now;
       const offset = 90_000;
-      // @ts-expect-error 테스트용 시계 조작
       Date.now = () => realNow() + offset;
       document.dispatchEvent(new Event('visibilitychange'));
     });
@@ -115,7 +114,7 @@ test.describe('실행 화면', () => {
 
     // 완료 폼: RPE·통증·메모
     await expect(page.getByText('운동 끝!')).toBeVisible();
-    await page.getByRole('radio', { name: '7', exact: true }).click();
+    await page.getByRole('group', { name: '자각 강도' }).getByRole('button', { name: '7', exact: true }).click();
     await page.getByRole('button', { name: /운동 중 통증이 있었나요/ }).click();
     await page.locator('textarea').fill('e2e 자동 기록');
     await shot(page, '13-done-form');
