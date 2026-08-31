@@ -90,3 +90,20 @@
 2. Zustand를 온보딩 상태에 사용 (SPEC 7은 "실행 화면 타이머 상태만"으로 한정; 실행 화면은 현재 useState 기반 순수 상태 머신) — SPEC 7 문구 갱신 권장.
 
 확인: `tsc --noEmit` / `next build` / e2e 3/3 PASS / `verify.ts`·`verify-runner.ts` PASS.
+
+---
+
+## 6단계 — Supabase 연동 ✅ (키 미제공 → localStorage 모드로 동작, 키만 넣으면 전환)
+
+`.env.local`이 없어(작업 시점 확인) 실계정 연동 테스트는 불가. 대신 **전환 가능한 완전한 코드 경로**를 작성했다:
+
+### 만든 것
+- `supabase/migrations/0001_init.sql` — SPEC 4.3 스키마 그대로(exercises/profiles/plans/sessions/session_logs) + 인덱스 + **RLS 전체**(본인 데이터만 select/insert/update, exercises는 읽기 전용).
+- `scripts/seed-exercises.ts` — 운동 56종 적재(`node --env-file=.env.local scripts/seed-exercises.ts`), progression FK 2-pass.
+- `src/lib/supabase/` — browser client(익명 로그인 `ensureAuth`; 로그인 UI는 SPEC 화면에 없으므로 Anonymous Sign-in 채택 — 프로젝트에서 켜야 함), server client(@supabase/ssr), row↔model 매핑, 서버 서비스(persistPlan: 기존 active abandon 후 스냅샷 저장 / completeSession: logs 일괄 + 전량 완료 시 plan completed / persistRegenerated: 세션 id 유지 upsert).
+- `src/middleware.ts` — 토큰 갱신(키 없으면 no-op).
+- SPEC 6 라우트 전부: `POST /api/plans`(persist 지원), `GET /api/plans/current`, `GET /api/sessions/[date]`, `POST /api/sessions/[id]/complete`, `POST /api/plans/[id]/regenerate`. 추가로 /settings 화면(SPEC 5)에 필요한 `POST /api/sessions/[id]/status`, `POST /api/profile`, `POST /api/reset` (SPEC 6 표에는 없음 — 기록).
+- `SupabaseRepository` — 위 라우트만 호출(엔진·DB 접근 전부 서버). env 키 존재 시 `getRepository()`가 자동 선택.
+
+### 확인 방법
+- 키가 없어 라이브 검증 불가 → `tsc --noEmit`·`next build` 통과, e2e 3/3(localStorage 모드) 회귀 통과로 확인. **키 투입 후 해야 할 것**: ① `supabase db push`(또는 SQL 실행) ② seed 스크립트 ③ Authentication→Anonymous sign-ins 활성화 ④ e2e를 Supabase 모드로 1회 수동 검증.
