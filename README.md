@@ -1,85 +1,64 @@
-# moccu_work_out
+# 모꾸 교정운동 (moccu_work_out)
 
-헬스장 회원용 **커스텀 교정운동 조합 시스템**의 코어 엔진 스켈레톤.
+헬스장 회원용 **커스텀 교정운동 조합 시스템** — 모바일 웹/PWA.
 
-사용자가 체형 문제(굽은어깨 · 거북목 · 불안한 고관절 · 골반 불균형 · 대근육 강화)를 선택하면
+체형 문제(굽은어깨 · 거북목 · 불안한 고관절 · 골반 불균형 · 대근육 강화)를 우선순위로 선택하면
 **40분 루틴**을 자동 조합하고, **시작일~종료일** 사이에 **2주 사이클**로 배치한다.
+캘린더에서 오늘 루틴을 열고 타이머를 따라 수행하면 완료·RPE·통증이 기록된다.
 
----
-
-## 지금 있는 것
-
-```
-src/lib/engine.ts        코어 엔진 (타입 + 타임박싱 + 조합 알고리즘 + 스케줄) — 런타임 의존성 0
-src/data/exercises.ts    운동 시드 DB 56종 (전문가 검수 전)
-scripts/verify.ts        엔진 검증 스크립트
-docs/SPEC.md             제품/알고리즘/DB/화면/API/완료기준 전체 사양  ← 단일 진실 소스
-docs/HANDOFF_PROMPT.md   다른 AI에게 붙여넣을 지시문 (전체 위임 / 화면 단위 / DB 확장)
-```
-
-UI, 저장소, 운동 콘텐츠(영상·이미지)는 아직 없다.
+단일 진실 소스: [`docs/SPEC.md`](docs/SPEC.md) · 구현 보고: [`docs/PROGRESS.md`](docs/PROGRESS.md)
 
 ---
 
 ## 실행
 
-Node 22.6 이상이 필요하다 (TypeScript 파일을 그대로 실행).
+Node **22.18+** (TypeScript 파일 직접 실행에 사용).
 
 ```bash
-node scripts/verify.ts
+npm install
+npm run dev            # http://localhost:3000
+npm run build && npm start
 ```
 
-검증 항목: 40분 ±2분 정확도 · 2주 사이클 다양성 · 무장비 사용자 대응 · 재현성 · 금기 필터링 · 단일 목표별 시간.
+기본은 **localStorage 모드**로 동작한다(계정·서버 DB 불필요, 데이터는 기기에 저장).
 
-현재 전 항목 통과. 실제 세션 시간은 39.2~40.9분 범위에 들어온다.
+### Supabase 모드 (선택)
 
----
+`.env.example`을 `.env.local`로 복사하고 키를 채우면 저장소가 자동 전환된다.
 
-## 엔진 사용법
-
-```ts
-import { buildPlan } from './src/lib/engine';
-import { EXERCISES } from './src/data/exercises';
-
-const plan = buildPlan(
-  {
-    startDate: '2026-09-01',
-    endDate: '2026-09-14',
-    daysPerWeek: 4,                                   // 2 | 3 | 4 | 5
-    sessionMinutes: 40,
-    concerns: ['rounded_shoulder', 'forward_head'],   // 배열 순서 = 우선순위
-    level: 2,                                         // 1 입문 · 2 중급 · 3 상급
-    equipment: ['band', 'foam_roller', 'dumbbell'],
-    avoidTags: ['knee_pain'],
-    seed: 42,                                         // 같은 시드 → 같은 루틴
-  },
-  EXERCISES,
-);
-
-plan.sessions;   // 일자별 세션 (페이즈 블록 + 운동 + 처방 + 소요시간)
-plan.restDates;  // 휴식일
-plan.warnings;   // 시간 오차, 기간 부족 등 경고
+```bash
+# 1) 스키마 적용 (supabase CLI 또는 SQL 편집기에서 supabase/migrations/0001_init.sql 실행)
+# 2) 운동 시드 적재
+node --env-file=.env.local scripts/seed-exercises.ts
+# 3) Supabase 대시보드에서 Authentication → Anonymous sign-ins 활성화
 ```
 
----
+## 검증
 
-## 다음 단계
+```bash
+npm run verify         # 엔진: 40분 정확도·다양성·금기 제외·재현성
+npm run verify:runner  # 실행 화면 상태 머신: 절대 시각 보정·일시정지·건너뛰기
+npm run typecheck
+npm run test:e2e       # Playwright (모바일 뷰포트, docs/screenshots/ 갱신)
+```
 
-`docs/SPEC.md` 8장의 구현 순서를 따른다.
+## 구조
 
-1. Next.js 앱 스캐폴딩 (기존 `src/lib`, `src/data` 이식)
-2. 온보딩 4화면
-3. **미리보기 화면** — 여기서 엔진 결과를 눈으로 검증
-4. 캘린더 + 루틴 상세
-5. 실행 화면 (공수 최대)
-6. Supabase 연동
-7. 완료/기록/진도율 → PWA → 배포
+```
+src/lib/engine.ts        코어 엔진 (타임박싱·조합·스케줄) — 수정 금지, 런타임 의존성 0
+src/data/exercises.ts    운동 시드 DB 56종 (⚠️ 전문가 검수 전)
+src/lib/session-runner.ts 실행 화면 상태 머신 (절대 시각 기반, 순수 모듈)
+src/lib/plan-service.ts  입력 검증 + 계획 생성/재생성 (blocks 스냅샷 보존)
+src/lib/repo/            저장소 추상화 (localStorage ↔ Supabase 자동 선택)
+src/app/                 화면: 온보딩 4단계 → 미리보기 → 캘린더 → 실행 → 완료, 설정
+src/app/api/             SPEC 6 서버 라우트 (엔진은 서버에서만 실행)
+supabase/migrations/     스키마 + RLS
+scripts/                 verify · verify-runner · seed-exercises · make-icons
+e2e/                     Playwright 시나리오
+```
 
----
+## 주의
 
-## ⚠️ 오픈 전 반드시
-
-- **운동 DB 전문가 검수** — `targets` 가중치, `intensity`, 처방, `contraindications` 전부.
-  경추·고관절 관련 운동은 검수 없이 오픈 금지.
-- **시연 영상/이미지 확보** — `mediaRef`가 현재 전부 null.
-- **의학적 면책 고지** — 온보딩 마지막과 세션 시작 화면 (`docs/SPEC.md` 5.2절).
+- **운동 DB는 전문가(물리치료사/교정운동 전문가) 검수 전이다.** 오픈 전 검수 필수 (SPEC 9·10).
+- `mediaRef`(운동 영상/이미지)는 전부 null — 텍스트 큐로 동작하며 콘텐츠 확보가 필요하다.
+- 의학적 진단·치료가 아니다. 면책 고지는 온보딩 마지막·세션 시작 화면에 노출된다.
