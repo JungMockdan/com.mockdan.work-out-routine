@@ -314,3 +314,53 @@ REST(`POST /auth/v1/signup`)와 앱이 실제로 쓰는 `supabase-js`의 `signIn
 
 이것만 켜지면 앱 전 과정 검증이 가능하다. 그 전까지 앱은 Supabase 모드에서
 "로그인에 실패했습니다: Anonymous sign-ins are disabled"를 보여준다.
+
+### 6단계 후속 3 — 서버 서비스 계층 라이브 검증 33건 통과
+
+익명 로그인 토글이 계속 막혀 있어, **그것에 의존하지 않는 부분을 먼저 끝냈다.**
+앱 코드(`plan-service.ts`, `supabase/service.ts`)를 **수정 없이 그대로 import**해서
+실제 사용자 JWT(RLS 적용)로 라이브 프로젝트에 대해 돌렸다.
+익명 로그인 대신 admin API로 임시 email 사용자를 만들어 쓰고 끝나면 지웠다.
+(일회성 진단이라 저장소에 남기지 않았다. Node가 `@/` 별칭과 확장자 없는 상대 경로를
+해석하지 못해 ESM resolve 훅을 임시로 끼웠다.)
+
+검증한 것 — **PASS 33 / FAIL 0**:
+
+- `createPlan` — 16세션, 전 세션 40분 ±2분, 5페이즈 스냅샷.
+- `persistPlan` — plans+sessions+profiles 저장, 상태가 `active`로 확정된다
+  (라운드2에서 넣은 **원자성 보강 경로**가 실제로 통과한다).
+  **전 세션 `blocks` 스냅샷이 jsonb 왕복 후에도 내용 동일**,
+  저장된 전 세션에 `knee_pain` 금기 운동 0건.
+- 두 번째 계획을 저장하면 **이전 active가 abandoned로 내려간다.**
+- `completeSession` — `elapsed_sec` 2377 저장/복원, `session_logs` 17건 일괄 기록, RPE·통증 기록.
+- **멱등성**(라운드2 항목) — 재호출해도 로그가 늘지 않고 기존 기록을 덮어쓰지 않는다.
+- `regeneratePlan` + `persistRegenerated`(라운드2 항목) — 완료 세션은 status·로그까지 보존,
+  세션 id 유지로 개수 16 유지, `level`·`avoid_tags`가 함께 저장되고,
+  **미수행 세션만 새 금기(`lumbar_disc`)를 반영해 재생성**된다.
+- 전 세션 완료 → 계획 `completed`, 그래도 `fetchCurrentPlan`이 돌려준다(라운드2 항목, 캘린더 유지).
+- `updateProfile` / `resetUserData` — 초기화 후 계획 없음, cascade로 sessions까지 삭제.
+
+검증 중 스크립트 쪽 실수 2건을 잡았는데 **둘 다 앱이 아니라 테스트의 문제**였다.
+`jsonb`는 객체 키 순서를 보존하지 않으므로 문자열 비교 대신 키 정렬 후 비교해야 하고,
+`regeneratePlan(current, newSeed?)`의 2번째 인자는 프로필 패치가 아니라 시드다.
+또 재생성은 **반드시 DB에서 다시 읽은 계획**으로 해야 한다(라우트는 그렇게 하고 있다).
+메모리에 들고 있던 오래된 계획으로 재생성하면 완료 상태가 planned로 덮인다.
+
+**남은 블로커: Anonymous sign-ins (변화 없음).**
+
+`GET /auth/v1/settings`가 인증 서버의 실제 적용값으로 `external.anonymous_users: false`를 계속 반환한다.
+`disable_signup`은 `false`라 가입 자체는 열려 있다.
+대시보드에서는 토글이 켜지고 Save가 비활성(저장할 변경 없음)인데도 서버 값이 바뀌지 않는다.
+껐다 켜며 재저장해도 동일하다.
+
+흔히 지목되는 원인 3가지는 여기에 해당하지 않는다.
+
+| 흔한 원인 | 해당 여부 |
+|---|---|
+| 로컬 CLI(`supabase start`)의 `config.toml` 미수정 | ✗ 로컬 Supabase를 쓰지 않는다. 원격 프로젝트 URL로 직접 조회했다 |
+| 프론트엔드 `.env`/개발서버 캐시 | ✗ Next를 거치지 않았다. curl과 Node에서 `persistSession:false`로 호출했다 |
+| `signUp()` 오용 | ✗ `signInAnonymously()`와 원시 `POST /auth/v1/signup {}` 양쪽 모두 같은 응답이다 |
+
+`/auth/v1/settings`는 클라이언트 캐시가 아니라 **인증 서버가 자기 설정을 보고하는 값**이므로,
+남는 설명은 (a) 대시보드에서 보는 프로젝트가 `smqgdstjbpqrntbjbkjv`가 아니거나
+(b) Supabase 쪽 설정 반영 실패다. (b)라면 프로젝트 재시작 또는 지원 문의가 필요하다.
