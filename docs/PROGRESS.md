@@ -437,3 +437,97 @@ SPEC 6의 "키 투입 후 1회 수동 검증" 절차를 자동화했다. 브라�
 없다. 스키마·시드·RLS·익명 로그인·전 과정 검증 완료.
 `.env.local`의 레거시 anon/service_role 키는 2026년 말 폐기 예정이므로
 언젠가 publishable/secret 키로 교체하는 편이 좋다(지금 동작에는 문제 없음).
+
+---
+
+## 2026-09-04 — 헬스장 기구 운동 보강 (운동 56 → 74종) ✅
+
+발단: 온보딩 기구 선택에 **바벨·케이블이 있는데 해당 운동이 0개**였다.
+헬스장 사용자가 기구를 전부 체크해도 추가로 얻는 운동이 하나도 없었다.
+헬스장 기구 운동 전체가 덤벨 5 + 벤치 4뿐이었다.
+
+### 설계 결정 — 제네릭 기구 축 + 벤더 매핑 레이어
+
+DRAX(디랙스) 제품군을 참조 카탈로그로 쓰되, **제품명을 엔진에 넣지 않는다.**
+`engine.ts`는 "런타임 의존성 0 · 운동 DB는 DI로 주입"이 설계 원칙이라
+특정 제조사에 묶이면 그 원칙이 깨진다. 그래서 두 층으로 나눴다.
+
+| 층 | 파일 | 역할 |
+|---|---|---|
+| 제네릭 기구 축 | `src/lib/engine.ts` | `lat_pulldown`·`leg_press` 등 벤더 중립 값. 엔진 필터·점수의 유일한 근거 |
+| 벤더 매핑 | `src/data/gym-vendors.ts` | 제네릭 값 → DRAX 제품명(표시 전용). 브랜드를 바꿔도 플랜 결과는 불변 |
+
+결과적으로 다른 브랜드 헬스장 사용자도 같은 운동을 그대로 받고,
+DRAX 헬스장 사용자는 실행 화면에서 실제 기구명(예: '웰리브 랫 풀다운')을 볼 수 있다.
+
+### 만든 것
+
+- `engine.ts` — `Equipment`에 머신 10종 + `squat_rack` 추가(제네릭). `GYM_EQUIPMENT` 상수 신설.
+  `MuscleGroup`에 `delt` 추가(삼각근이 없어 체스트/숄더 프레스를 표현할 수 없었다).
+- `src/data/gym-vendors.ts` (신규) — DRAX 15종 매핑, `vendorMachineName()`. 출처 draxfit.com/ko/strength.
+- `src/data/exercises.ts` — **18종 추가 (56 → 74)**.
+  머신 10(랫 풀다운·시티드 로우·리버스 펙덱·체스트 프레스·숄더 프레스·레그 프레스·레그
+  익스텐션·레그컬·아웃터 사이·백 익스텐션), 바벨 5(백 스쿼트·RDL·벤트오버 로우·벤치
+  프레스·힙 쓰러스트), 케이블 3(페이스 풀·팔로프 프레스·힙 어브덕션).
+- `src/lib/constants.ts` — `EQUIPMENT_OPTIONS`에 `group: 'home' | 'gym'` 추가(8 → 20종),
+  `EQUIPMENT_LABEL` 전 값 보강, `GYM_PRESET` 신설.
+- `src/store/onboarding.ts` — `setEquipmentBulk(list, on)` 추가(프리셋 일괄 토글).
+- `/onboarding/profile` — 장비 칩을 집/헬스장 섹션으로 분리 + "헬스장 다닌다 · 전체 선택" 프리셋 버튼.
+  칩이 20개로 늘어 플랫 목록이 쓰기 어려워졌기 때문이다.
+- `scripts/verify-gym.ts` (신규) + `npm run verify:gym`.
+
+### 교정운동 앱으로서 지킨 것
+
+- **흉근 프레스의 targets에 `rounded_shoulder`를 넣지 않았다.** 굽은 어깨 사용자에게
+  체스트 프레스·벤치 프레스가 핵심 운동으로 올라오면 증상을 악화시킨다.
+  대신 리버스 펙덱·케이블 페이스 풀을 `rounded_shoulder: 1.0`으로 배치했다.
+- 아웃터 사이(중둔근)를 `hip_instability: 0.9`로 두어 고관절 불안정의 머신 대안을 만들었다.
+- 바벨 종목에 `lumbar_disc`·`knee_pain` 금기를 빠짐없이 달았다.
+
+### 확인 방법
+
+| 검증 | 결과 |
+|---|---|
+| `npm run verify:gym` | **PASS 8 / FAIL 0** |
+| `npm run verify:seed` (Supabase 시드 대조) | **PASS 9 / FAIL 0** |
+| `npm run verify` (회귀) | 전 항목 PASS |
+| `npx playwright test` | **3 passed** (Supabase 스펙 skip) |
+| `E2E_SUPABASE=1 npx playwright test` | **1 passed** (localStorage 스펙 3건 skip) |
+| `npx tsc --noEmit` · `npx next build` | 통과 |
+
+`verify-gym.ts`가 확인하는 것: 헬스장 프리셋에 머신 운동 배정(11종),
+**홈 사용자에게 헬스장 운동 누출 0건**, 기구 AND 조건(랙 없으면 백 스쿼트 제외),
+시간 오차 유지, 흉근 프레스 targets 편향 없음, 금기 태그 적용, DRAX 매핑 커버리지.
+
+### Supabase 재시드 완료 ✅
+
+`node --env-file=.env.local scripts/seed-exercises.ts` 실행 → **74종 적재 (progression 7건 연결)**.
+`equipment`가 `text[]`이고 CHECK 제약이 없어 마이그레이션은 필요하지 않았다.
+
+검증용으로 `scripts/verify-seed.ts` + `npm run verify:seed`를 신설했다. DB를 직접 읽어
+로컬 시드와 대조한다 — 행 수, 양방향 누락(로컬→DB 누락 / DB 유령 행), 신규 18종 적재,
+**전 74종의 `equipment` 배열 값 일치**(`text[]`라서 오타가 조용히 통과할 수 있다),
+신규 근육군 `delt` 저장, 흉근 프레스의 `rounded_shoulder` 부재, 금기 태그, `is_active`.
+결과 **PASS 9 / FAIL 0**. e2e 양쪽 모드를 돌린 뒤 재실행해도 74종 유지(테스트가 운동 마스터를 건드리지 않는다).
+
+DB 기준 phase 분포: release 10 · mobility 10 · activation 15 · strength 33 · integration 6.
+
+> ⚠️ `scripts/verify-seed.ts`를 처음 만들 때 env 가드를 빼먹어 `next build`가 깨졌다.
+> `scripts/*.ts`도 빌드 타입 체크 대상이므로 `seed-exercises.ts`처럼
+> `if (!url || !key) process.exit(1)` 가드를 반드시 넣어야 한다.
+
+### 남은 것
+
+1. **전문가 검수 대상 확대** — 신규 18종의 처방·금기도 검수 범위에 들어간다.
+   특히 바벨 종목(intensity 4~5)은 `level: 1` 사용자에게 가는 것이 적절한지 확인이 필요하다.
+2. **`mediaRef` 여전히 전 74종 null.**
+3. **머신 운동에 phase 편중** — 추가분 18종 중 17종이 strength다.
+   `integration`은 아직 6종이라 어느 모드에서든 마무리 블록이 매 세션 거의 동일하다.
+   DRAX 스트레칭 라인을 참조해 integration을 늘리는 것이 다음 후보다.
+4. **`progressionId` 미연결** — 이 필드는 엔진에서 아직 쓰이지 않는다(선언만 존재).
+   맨몸 → 바벨 진행을 걸면 기구 미보유 사용자에게 상위 운동이 새므로,
+   구현 시 기구 보유 여부를 함께 검사해야 한다. 그래서 신규 18종에는 의도적으로 걸지 않았다.
+5. **모드 개념(2·3단계)은 아직 없다** — 지금은 기구 프리셋뿐이다.
+   `style` 축(맨몸/헬스장/필라테스/요가/스트레칭)과 phase 예산 프로파일은 미착수.
+   `phaseBudgets()`가 concern에서만 예산을 파생시키므로, 모드가 strength 비중을
+   조정하려면 이 함수에 프로파일 인자를 받게 고쳐야 한다.

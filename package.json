@@ -11,7 +11,9 @@
     "verify": "node scripts/verify.ts",
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
-    "verify:runner": "node scripts/verify-runner.ts"
+    "verify:runner": "node scripts/verify-runner.ts",
+    "verify:gym": "node scripts/verify-gym.ts",
+    "verify:seed": "node --env-file=.env.local scripts/verify-seed.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

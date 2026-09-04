@@ -21,6 +21,8 @@ export interface OnboardingState {
   reorderConcerns: (from: number, to: number) => void;
   setLevel: (l: Level) => void;
   toggleEquipment: (e: Equipment) => void;
+  /** 프리셋용. 주어진 기구를 한 번에 모두 켜거나(on) 모두 끈다(off). */
+  setEquipmentBulk: (list: Equipment[], on: boolean) => void;
   toggleAvoidTag: (t: string) => void;
   setSchedule: (
     patch: Partial<Pick<OnboardingState, 'startDate' | 'endDate' | 'daysPerWeek' | 'sessionMinutes'>>,
@@ -65,6 +67,13 @@ export const useOnboarding = create<OnboardingState>()(
         set((s) => ({
           equipment: s.equipment.includes(e) ? s.equipment.filter((x) => x !== e) : [...s.equipment, e],
         })),
+      setEquipmentBulk: (list, on) =>
+        set((s) => {
+          if (!on) return { equipment: s.equipment.filter((x) => !list.includes(x)) };
+          const next = [...s.equipment];
+          for (const e of list) if (!next.includes(e)) next.push(e);
+          return { equipment: next };
+        }),
       toggleAvoidTag: (t) =>
         set((s) => ({
           avoidTags: s.avoidTags.includes(t) ? s.avoidTags.filter((x) => x !== t) : [...s.avoidTags, t],

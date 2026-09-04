@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { AVOID_TAG_OPTIONS, EQUIPMENT_OPTIONS, LEVEL_OPTIONS } from '@/lib/constants';
+import { AVOID_TAG_OPTIONS, EQUIPMENT_OPTIONS, GYM_PRESET, LEVEL_OPTIONS } from '@/lib/constants';
 import { useOnboarding } from '@/store/onboarding';
 import { Button, Chip, Page, PageHeader, SectionTitle, cx } from '@/components/ui';
 
@@ -11,6 +11,8 @@ export default function ProfilePage() {
   const setLevel = useOnboarding((s) => s.setLevel);
   const equipment = useOnboarding((s) => s.equipment);
   const toggleEquipment = useOnboarding((s) => s.toggleEquipment);
+  const setEquipmentBulk = useOnboarding((s) => s.setEquipmentBulk);
+  const gymOn = GYM_PRESET.every((e) => equipment.includes(e));
   const avoidTags = useOnboarding((s) => s.avoidTags);
   const toggleAvoidTag = useOnboarding((s) => s.toggleAvoidTag);
 
@@ -54,8 +56,32 @@ export default function ProfilePage() {
         <SectionTitle sub="맨몸·매트 운동은 항상 포함됩니다. 없으면 선택하지 않아도 됩니다.">
           <span className="mt-8 block">사용할 수 있는 장비</span>
         </SectionTitle>
-        <div className="flex flex-wrap gap-2" role="group" aria-label="장비">
-          {EQUIPMENT_OPTIONS.map((o) => (
+
+        <p className="mb-2 text-xs font-semibold text-slate-500">집 · 소도구</p>
+        <div className="flex flex-wrap gap-2" role="group" aria-label="집 장비">
+          {EQUIPMENT_OPTIONS.filter((o) => o.group === 'home').map((o) => (
+            <Chip key={o.id} selected={equipment.includes(o.id)} onClick={() => toggleEquipment(o.id)}>
+              {o.label}
+            </Chip>
+          ))}
+        </div>
+
+        <div className="mt-5 mb-2 flex items-center justify-between">
+          <p className="text-xs font-semibold text-slate-500">헬스장</p>
+          <button
+            type="button"
+            aria-pressed={gymOn}
+            onClick={() => setEquipmentBulk(GYM_PRESET, !gymOn)}
+            className={cx(
+              'rounded-full border px-3 py-1 text-xs font-semibold transition-colors',
+              gymOn ? 'border-brand bg-brand text-white' : 'border-line bg-white text-slate-600 hover:bg-slate-50',
+            )}
+          >
+            {gymOn ? '헬스장 전체 해제' : '헬스장 다닌다 · 전체 선택'}
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-2" role="group" aria-label="헬스장 장비">
+          {EQUIPMENT_OPTIONS.filter((o) => o.group === 'gym').map((o) => (
             <Chip key={o.id} selected={equipment.includes(o.id)} onClick={() => toggleEquipment(o.id)}>
               {o.label}
             </Chip>

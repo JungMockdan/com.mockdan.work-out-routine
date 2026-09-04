@@ -1,15 +1,41 @@
+import { GYM_EQUIPMENT } from './engine';
 import type { Equipment, Level } from './engine';
 
-export const EQUIPMENT_OPTIONS: Array<{ id: Equipment; label: string }> = [
-  { id: 'band', label: '밴드' },
-  { id: 'foam_roller', label: '폼롤러' },
-  { id: 'ball', label: '마사지볼' },
-  { id: 'wall', label: '벽' },
-  { id: 'dumbbell', label: '덤벨' },
-  { id: 'bench', label: '벤치' },
-  { id: 'barbell', label: '바벨' },
-  { id: 'cable', label: '케이블' },
+/**
+ * 온보딩 기구 선택 옵션.
+ * group으로 홈/헬스장을 구분해 UI에서 섹션을 나눈다. 'none'과 'mat'은 항상 보유로
+ * 간주하므로 선택 대상이 아니다.
+ */
+export const EQUIPMENT_OPTIONS: Array<{ id: Equipment; label: string; group: 'home' | 'gym' }> = [
+  // 홈 / 소도구
+  { id: 'band', label: '밴드', group: 'home' },
+  { id: 'foam_roller', label: '폼롤러', group: 'home' },
+  { id: 'ball', label: '마사지볼', group: 'home' },
+  { id: 'wall', label: '벽', group: 'home' },
+  // 헬스장 프리웨이트
+  { id: 'dumbbell', label: '덤벨', group: 'gym' },
+  { id: 'bench', label: '벤치', group: 'gym' },
+  { id: 'barbell', label: '바벨', group: 'gym' },
+  { id: 'squat_rack', label: '스쿼트 랙 · 파워 랙', group: 'gym' },
+  { id: 'cable', label: '케이블 스테이션', group: 'gym' },
+  // 헬스장 머신
+  { id: 'lat_pulldown', label: '랫 풀다운', group: 'gym' },
+  { id: 'seated_row', label: '시티드 로우', group: 'gym' },
+  { id: 'chest_press', label: '체스트 프레스', group: 'gym' },
+  { id: 'shoulder_press_machine', label: '숄더 프레스', group: 'gym' },
+  { id: 'pec_deck', label: '펙덱 플라이', group: 'gym' },
+  { id: 'leg_press', label: '레그 프레스', group: 'gym' },
+  { id: 'leg_extension', label: '레그 익스텐션', group: 'gym' },
+  { id: 'leg_curl', label: '레그컬', group: 'gym' },
+  { id: 'hip_abductor', label: '아웃터 사이 (어브덕터)', group: 'gym' },
+  { id: 'back_extension', label: '백 익스텐션', group: 'gym' },
 ];
+
+/**
+ * '헬스장 다닌다'를 한 번에 켜는 프리셋.
+ * 일반 헬스장이면 대체로 다 갖춰져 있으므로 기본값으로 제안한다.
+ */
+export const GYM_PRESET: Equipment[] = GYM_EQUIPMENT;
 
 export const EQUIPMENT_LABEL: Record<Equipment, string> = {
   none: '맨몸',
@@ -21,7 +47,18 @@ export const EQUIPMENT_LABEL: Record<Equipment, string> = {
   dumbbell: '덤벨',
   bench: '벤치',
   barbell: '바벨',
-  cable: '케이블',
+  squat_rack: '스쿼트 랙',
+  cable: '케이블 스테이션',
+  lat_pulldown: '랫 풀다운',
+  seated_row: '시티드 로우',
+  chest_press: '체스트 프레스',
+  shoulder_press_machine: '숄더 프레스',
+  pec_deck: '펙덱 플라이',
+  leg_press: '레그 프레스',
+  leg_extension: '레그 익스텐션',
+  leg_curl: '레그컬',
+  hip_abductor: '아웃터 사이',
+  back_extension: '백 익스텐션',
 };
 
 /** 통증 부위 → 금기 태그 (exercises.ts의 contraindications와 일치) */

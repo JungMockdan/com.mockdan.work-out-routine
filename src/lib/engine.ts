@@ -48,14 +48,33 @@ export const PHASE_LABEL_KO: Record<Phase, string> = {
 };
 
 export type MuscleGroup =
-  | 'neck_deep_flexor' | 'upper_trap' | 'lower_trap' | 'rhomboid' | 'rear_delt'
+  | 'neck_deep_flexor' | 'upper_trap' | 'lower_trap' | 'rhomboid' | 'rear_delt' | 'delt'
   | 'pec' | 'lat' | 'thoracic' | 'erector'
   | 'glute_max' | 'glute_med' | 'hamstring' | 'quad' | 'adductor' | 'hip_flexor'
   | 'core_anterior' | 'core_lateral' | 'calf' | 'full_body';
 
+/**
+ * 기구 축. **벤더 중립적인 제네릭 값만** 둔다.
+ * 특정 제조사 제품명(DRAX 웰리브 랫풀다운 등)은 여기에 넣지 않는다.
+ * 제품명은 src/data/gym-vendors.ts의 매핑 레이어에서 라벨로만 연결한다.
+ */
 export type Equipment =
+  // 홈 / 맨몸
   | 'none' | 'mat' | 'wall' | 'band' | 'foam_roller' | 'ball'
-  | 'dumbbell' | 'bench' | 'barbell' | 'cable';
+  // 프리웨이트
+  | 'dumbbell' | 'bench' | 'barbell' | 'squat_rack' | 'cable'
+  // 헬스장 머신 (핀 로드 / 플레이트 로드)
+  | 'lat_pulldown' | 'seated_row' | 'chest_press' | 'shoulder_press_machine'
+  | 'pec_deck' | 'leg_press' | 'leg_extension' | 'leg_curl'
+  | 'hip_abductor' | 'back_extension';
+
+/** 헬스장에서만 만나는 기구. '헬스장 모드' 프리셋의 근거가 된다. */
+export const GYM_EQUIPMENT: Equipment[] = [
+  'barbell', 'squat_rack', 'cable', 'dumbbell', 'bench',
+  'lat_pulldown', 'seated_row', 'chest_press', 'shoulder_press_machine',
+  'pec_deck', 'leg_press', 'leg_extension', 'leg_curl',
+  'hip_abductor', 'back_extension',
+];
 
 export type Level = 1 | 2 | 3; // 1 입문 · 2 중급 · 3 상급
 
