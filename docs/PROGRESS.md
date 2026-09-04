@@ -364,3 +364,76 @@ REST(`POST /auth/v1/signup`)와 앱이 실제로 쓰는 `supabase-js`의 `signIn
 `/auth/v1/settings`는 클라이언트 캐시가 아니라 **인증 서버가 자기 설정을 보고하는 값**이므로,
 남는 설명은 (a) 대시보드에서 보는 프로젝트가 `smqgdstjbpqrntbjbkjv`가 아니거나
 (b) Supabase 쪽 설정 반영 실패다. (b)라면 프로젝트 재시작 또는 지원 문의가 필요하다.
+
+---
+
+## 6단계 완료 — Supabase 실연동 검증 통과 ✅
+
+### 익명 로그인 블로커 해소 — 원인은 설정 반영 실패였다
+
+대시보드 토글은 켜지고 저장됐는데 인증 서버는 계속 `external.anonymous_users: false`를 보고했다.
+흔히 지목되는 3가지(로컬 CLI `config.toml` / 프론트 `.env`·캐시 / `signUp()` 오용)는
+앞 절에 적은 대로 전부 해당하지 않았고, 최신 문서 확인 결과 호스팅 프로젝트는
+**대시보드 토글만으로 즉시 적용**되며 publishable/secret 키 체계와도 무관했다.
+
+프로젝트 동일성을 가리려고 admin API로 표식 계정을 하나 만들어 대시보드에서 보이는지 확인했는데,
+**대시보드에는 보이지 않았다.** 프로젝트 ref는 `smqgdstjbpqrntbjbkjv`로 동일한데도 그랬다.
+→ **Settings → General → Restart project** 후 즉시 해결됐다.
+
+```
+external.anonymous_users = true
+signInAnonymously() → OK (is_anonymous=true)
+```
+
+대시보드가 표식 계정을 못 보여준 것도 같은 원인(설정·데이터 반영이 멈춘 상태)으로 보인다.
+재시작 후에는 표식 계정이 정상 조회됐다. **교훈: 대시보드 표시를 믿지 말고
+`GET /auth/v1/settings`로 인증 서버의 적용값을 확인할 것. 어긋나면 프로젝트 재시작.**
+
+### 만든 것 — `e2e/supabase.spec.ts` (Supabase 모드 전 과정 자동 검증)
+
+SPEC 6의 "키 투입 후 1회 수동 검증" 절차를 자동화했다. 브라우저는 익명 로그인으로 사용자를 만들고,
+검증은 service_role로 DB를 직접 읽어 **화면에서 한 일이 실제로 Supabase에 저장됐는지** 확인한다.
+끝나면 만든 익명 사용자를 지운다(계획·세션·로그는 FK cascade로 함께 삭제).
+
+두 스위트는 **배타적으로** 돈다.
+
+| 실행 | 도는 스위트 |
+|---|---|
+| `npx playwright test` | localStorage 모드 3건 (Supabase 스펙은 skip) |
+| `E2E_SUPABASE=1 npx playwright test` | Supabase 모드 1건 (localStorage 스펙 3건 skip) |
+
+검증 내용: 온보딩 4화면 → 미리보기(면책 고지) → 계획 시작 → `/plan`.
+그다음 DB를 직접 읽어 확인한다.
+
+- 익명 사용자가 정확히 1명 생성되고 `is_anonymous=true`.
+- **계획이 localStorage에 저장되지 않는다**(Supabase 모드임을 반증).
+- `plans` 1행, `status=active`, **`concerns` 배열 순서가 화면에서 올린 우선순위와 일치**,
+  `level`·`avoid_tags` 일치.
+- `sessions` 16행, 첫 세션 날짜 일치, **전 세션 40분 ±2분**, `blocks` 5페이즈 스냅샷,
+  **전 세션에 `knee_pain` 금기 운동 0건**.
+- `profiles` 1행 저장.
+- 실행 화면(면책 고지) → 전 운동 건너뛰기 → 완료 폼(RPE 7·통증·메모) → 저장.
+- `sessions.status=done`, `completed_at`·**`elapsed_sec` 기록**,
+  `session_logs`에 RPE 7·통증 플래그·메모 저장.
+- 캘린더가 Supabase에서 다시 읽어 완료 표시.
+
+스크린샷 `16-supabase-plan` · `17-supabase-done` · `18-supabase-calendar`.
+
+### 확인 방법
+
+| 검증 | 결과 |
+|---|---|
+| `E2E_SUPABASE=1 npx playwright test` | **1 passed** (localStorage 스펙 3건 skip) |
+| `npx playwright test` (회귀) | **3 passed** (Supabase 스펙 skip) |
+| `npx tsc --noEmit` | 통과 |
+| 서비스 계층 라이브 검증(앞 절) | PASS 33 / FAIL 0 |
+| RLS·FK 라이브 검증(앞 절) | PASS 17 / FAIL 0 |
+
+**테스트 후 DB 정리 상태**: `plans`/`sessions`/`session_logs`/`profiles` 전부 0행,
+사용자 0명, `exercises` 56종 유지. 테스트가 데이터를 남기지 않는다.
+
+### 6단계 남은 것
+
+없다. 스키마·시드·RLS·익명 로그인·전 과정 검증 완료.
+`.env.local`의 레거시 anon/service_role 키는 2026년 말 폐기 예정이므로
+언젠가 publishable/secret 키로 교체하는 편이 좋다(지금 동작에는 문제 없음).

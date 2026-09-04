@@ -40,6 +40,9 @@ async function seedPlan(page: Page) {
 }
 
 test.describe('실행 화면', () => {
+  // localStorage 저장소를 직접 단정하는 스위트 — Supabase 모드에서는 supabase.spec.ts가 대신 돈다
+  test.skip(process.env.E2E_SUPABASE === '1', 'localStorage 모드 전용');
+
   test('캘린더 → 상세 → 실행: 타이머·일시정지·백그라운드 보정·중단 복원', async ({ page }) => {
     const plan = await seedPlan(page);
     const first = plan.sessions[0];
