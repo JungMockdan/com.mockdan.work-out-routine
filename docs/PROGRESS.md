@@ -151,3 +151,83 @@
 - **동작 모드**: localStorage 모드로 완전 동작(e2e 3/3). Supabase는 키 투입 시 자동 전환 — 남은 수동 절차: 스키마 적용 → 시드 적재 → Anonymous sign-ins 활성화 → 1회 수동 검증.
 - **배포**: Vercel 미로그인으로 생략(결정사항). `next build` 통과 상태 — `vercel login` 후 `vercel` 한 번이면 됨.
 - **사람이 해야 할 일**: ① 실기기 검증 ② 운동 DB 전문가 검수 ③ Supabase/Vercel 계정 절차 ④ 사양 편차 사인오프(기간 프리셋 칩, 온보딩 상태의 Zustand 사용, sessions.elapsed_sec 컬럼, /api/profile·reset·status 라우트).
+
+---
+
+## 2026-09-04 — e2e 날짜 의존성 제거 · 사양 편차 SPEC 반영 · Supabase 연동 착수
+
+### 고친 것 ① e2e가 날짜에 따라 깨지던 문제 (시한폭탄)
+
+재검증에서 `onboarding.spec.ts`가 실패했다. 앱 버그가 아니라 **테스트가 고정 날짜를 쓴 탓**이다.
+
+- 테스트는 시작일에 `2026-09-01`을 넣고 4주 프리셋 → 종료일 `2026-09-28`을 기대했다.
+  그런데 리뷰 라운드 1에서 넣은 "과거 시작일은 오늘로 클램프"가 정상 동작하면서
+  시작일이 오늘(9/4)로 당겨졌고 종료일이 `2026-10-01`이 됐다. 8/31에는 통과했고 9/1부터 깨졌다.
+- `session.spec.ts`도 같은 부류였다. `2026-08-31 ~ 2026-09-27`을 하드코딩해서
+  그 기간이 지나면 조용히 깨질 상태였다.
+
+수정 — 고정 날짜를 전부 걷어내고 **오늘 기준 상대 날짜**로 바꿨다.
+
+- `e2e/dates.ts` 신규. 요일 패턴은 엔진의 `weekdayPattern()`을, 날짜 포맷은 `src/lib/dates.ts`의
+  `shiftISO`/`formatKo`를 **그대로 재사용**한다(테스트에 중복 정의를 두지 않는다).
+  `firstSessionISO(startISO, daysPerWeek)`만 새로 추가.
+- `onboarding.spec.ts` — 시작일 input의 `min` 속성(=앱이 계산한 오늘)을 읽어 기준으로 삼는다.
+  종료일은 `shiftISO(오늘, 27)`, 첫 세션 라벨은 `firstSessionISO(오늘, 4)`로 기대값을 계산한다.
+  저장된 계획의 `sessions[0].date`·`input.startDate`도 같은 값인지 교차 검증하도록 단정을 추가했다.
+- `session.spec.ts` — 시드 계획의 기간을 브라우저의 로컬 오늘 ~ +27일로 계산한다.
+  (`todayISO()`와 같은 방식. Node와 브라우저의 타임존이 다를 수 있어 브라우저 안에서 계산한다.)
+
+### 고친 것 ② `.env.local`이 생기자 e2e 3건이 전부 깨진 문제
+
+작업 중 `.env.local`이 추가되면서 빌드가 Supabase 모드로 바뀌었고,
+localStorage를 직접 읽고 쓰는 전제인 e2e가 3/3 실패했다.
+
+- `playwright.config.ts`의 `webServer.env`에서 `NEXT_PUBLIC_SUPABASE_*`를 빈 값으로 덮어
+  **스위트를 로컬 모드로 고정**했다. (`NEXT_PUBLIC_*`은 빌드 타임 인라인이라 빌드 환경에서 눌러야 한다.)
+- Supabase 모드 확인이 필요하면 `E2E_SUPABASE=1`로 켠다. 다만 이 스위트는 localStorage를
+  직접 단정하므로 그대로는 통과하지 않는다 — 수동 확인용 스위치다.
+- 주의: `reuseExistingServer: true`라 3100 포트에 서버가 이미 떠 있으면 그걸 재사용하고
+  이 덮어쓰기가 무시된다. 모드를 바꿔 돌릴 때는 기존 서버를 내리고 시작할 것.
+
+### 고친 것 ③ 사양 편차 4건을 SPEC.md에 기재 (⚠️ 사인오프 대기)
+
+리뷰 라운드에서 "기능 삭제 대신 기록"으로 남겼던 항목을 단일 진실 소스에 반영했다.
+전부 `⚠️ 사인오프 대기`로 표시했다. **문구 초안이며, 유지할지 되돌릴지는 사람이 정한다.**
+
+| 절 | 편차 |
+|---|---|
+| 4.3 | `sessions.elapsed_sec` 컬럼 — 실측 소요 시간 기록용 |
+| 5 | 일정 화면의 기간 프리셋 칩(2/4/8/12주) |
+| 6 | `/api/profile`, `/api/reset`, `/api/sessions/[id]/status` 3개 라우트 + 추가 이유 |
+| 7 | Zustand 사용처가 "실행 화면 타이머"가 아니라 "온보딩 입력 상태"로 뒤바뀐 경위 |
+
+코드 변경은 없다. SPEC.md diff는 위 4개 절만 건드린다.
+
+### 확인 방법
+
+`tsc --noEmit` 통과 · `node scripts/verify.ts` 전 항목 PASS · `node scripts/verify-runner.ts` 14 PASS ·
+`npx playwright test` **3/3 PASS**(`.env.local`이 있는 상태에서 config가 로컬 모드로 고정하는 것까지 확인).
+Node v26.2.0에서 실행.
+
+### 6단계 Supabase — 막힌 지점
+
+`.env.local`에 URL·anon key·service role key가 들어왔다. 프로젝트 ref는 `smqgdstjbpqrntbjbkjv`.
+그런데 **스키마가 아직 적용돼 있지 않다**. 서비스 롤 키로 `plans`를 조회하면
+`PGRST205 Could not find the table 'public.plans'`가 돌아온다.
+
+스키마 적용(DDL)은 이 환경에서 자동화할 수단이 없다.
+
+- `psql` 없음, `supabase` CLI 없음(`node_modules`에도 없음).
+- PostgREST(서비스 롤 키로 접근 가능한 유일한 경로)는 DDL을 실행하지 못한다.
+- `supabase link`/`db push`는 액세스 토큰과 DB 비밀번호가 필요한데 둘 다 없다.
+  (`.env.local`의 주석에 CLI 명령이 적혀 있으나 로그인은 브라우저 인증이라 무인 실행 불가.)
+
+**사람이 해야 할 2가지** — 둘 다 Supabase 대시보드에서:
+
+1. SQL Editor에 `supabase/migrations/0001_init.sql` 전문을 붙여넣고 실행.
+   (`create table`에 `if not exists`가 없으므로 두 번 실행하면 에러가 난다. 최초 1회만.)
+2. Authentication → Sign In / Providers → **Anonymous sign-ins 활성화**.
+   로그인 UI가 SPEC 화면에 없어 익명 로그인을 채택했기 때문에 이게 꺼져 있으면 전부 401이다.
+
+이 둘이 끝나면 남은 건 자동화 가능하다:
+`node --env-file=.env.local scripts/seed-exercises.ts` (운동 56종 적재) → Supabase 모드 수동 검증.

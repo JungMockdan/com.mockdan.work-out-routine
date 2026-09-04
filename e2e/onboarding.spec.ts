@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { firstSessionISO, formatKo, shiftISO } from './dates';
 
 const SHOT = 'docs/screenshots';
 
@@ -39,9 +40,14 @@ test.describe('온보딩 → 미리보기', () => {
 
     // 3) 기간
     await expect(page).toHaveURL(/\/onboarding\/schedule/);
-    await page.getByLabel('시작일').fill('2026-09-01');
+    // 과거 시작일은 오늘로 클램프되므로 고정 날짜를 쓰지 않는다.
+    // min 속성 = 앱이 계산한 오늘. 이걸 기준으로 상대 검증한다.
+    const startInput = page.getByLabel('시작일');
+    const start = await startInput.getAttribute('min');
+    expect(start).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    await startInput.fill(start!);
     await page.getByRole('button', { name: '4주' }).click();
-    await expect(page.getByLabel('종료일')).toHaveValue('2026-09-28');
+    await expect(page.getByLabel('종료일')).toHaveValue(shiftISO(start!, 27));
     await page.getByRole('button', { name: /주 4회/ }).click();
     await expect(page.getByText('16회')).toBeVisible();
     await shot(page, '04-schedule');
@@ -52,7 +58,8 @@ test.describe('온보딩 → 미리보기', () => {
     await expect(page.getByText('루틴이 준비됐습니다')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText('1. 굽은 어깨')).toBeVisible();
     await expect(page.getByText('2. 거북목')).toBeVisible();
-    await expect(page.getByText(/첫 세션 · 9월 1일/)).toBeVisible();
+    const firstDate = firstSessionISO(start!, 4);
+    await expect(page.getByText(`첫 세션 · ${formatKo(firstDate, false)}`)).toBeVisible();
     // 5개 페이즈 아코디언
     for (const label of ['이완 · 근막 릴리즈', '가동성', '활성화', '강화', '통합 · 정리']) {
       await expect(page.getByRole('button', { name: new RegExp(label) })).toBeVisible();
@@ -74,6 +81,8 @@ test.describe('온보딩 → 미리보기', () => {
     expect(stored).not.toBeNull();
     const plan = JSON.parse(stored!);
     expect(plan.sessions.length).toBe(16);
+    expect(plan.sessions[0].date).toBe(firstDate);
+    expect(plan.input.startDate).toBe(start);
     expect(plan.input.concerns).toEqual(['rounded_shoulder', 'forward_head', 'hip_instability']);
     expect(plan.input.avoidTags).toEqual(['knee_pain']);
     // 스냅샷: blocks가 저장되어 있다

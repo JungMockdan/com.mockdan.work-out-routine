@@ -235,6 +235,7 @@ create table sessions (
   total_sec     integer not null,
   status        text not null default 'planned' check (status in ('planned','in_progress','done','skipped')),
   completed_at  timestamptz,
+  elapsed_sec   integer,                          -- 실제 소요 시간(완료 시 기록). ⚠️ 사인오프 대기
   unique (plan_id, date)
 );
 
@@ -268,7 +269,7 @@ select/insert/update 정책을 걸 것. `exercises`는 전체 읽기 허용 + �
 | `/` | 온보딩 / 홈 | 진행 중인 계획 있으면 오늘 루틴 카드, 없으면 시작 CTA |
 | `/onboarding/concerns` | 목표 선택 | 5개 카드 복수 선택 + **드래그로 우선순위 정렬** |
 | `/onboarding/profile` | 레벨·장비 | 레벨 3택1, 장비 칩 다중 선택, 통증 부위(금기 태그) |
-| `/onboarding/schedule` | 기간 설정 | 시작일·종료일 데이트피커, 주당 횟수 2~5, 세션 시간(기본 40분) |
+| `/onboarding/schedule` | 기간 설정 | 시작일·종료일 데이트피커, 기간 프리셋 칩(2/4/8/12주 — ⚠️ 사인오프 대기), 주당 횟수 2~5, 세션 시간(기본 40분) |
 | `/onboarding/preview` | 생성 결과 미리보기 | 첫 세션 전체 + 2주 캘린더 요약, "이 계획 시작하기" |
 | `/plan` | 캘린더 | 월간 그리드, 운동일/휴식일/완료 상태 표시, 진도율 바 |
 | `/plan/[date]` | 해당 일 루틴 상세 | 페이즈별 아코디언, 운동 카드(이름·처방·시간·큐) |
@@ -305,6 +306,16 @@ select/insert/update 정책을 걸 것. `exercises`는 전체 읽기 허용 + �
 
 엔진은 **서버에서 실행**한다. 클라이언트에서 돌리면 운동 DB 전체를 내려보내야 한다.
 
+구현하면서 추가된 라우트 (⚠️ 사인오프 대기 — 위 표에 없던 것):
+
+| 메서드 | 경로 | 설명 | 추가 이유 |
+|---|---|---|---|
+| `POST` | `/api/profile` | `profiles` 행 병합 저장 | 설정 화면(5장)의 "프로필 수정"에 저장처가 필요 |
+| `POST` | `/api/reset` | 사용자의 `plans` 삭제(cascade) | 설정 화면의 "데이터 초기화"에 저장처가 필요 |
+| `POST` | `/api/sessions/[id]/status` | 세션 상태를 `planned`/`in_progress`/`skipped`로 갱신 | 실행 화면의 시작·중단이 완료(`complete`)와 별개 상태 전이를 쓴다 |
+
+세 라우트 모두 Supabase 모드 전용이다. localStorage 모드에서는 `501`을 반환하고 클라이언트가 로컬 저장소를 직접 쓴다.
+
 ---
 
 ## 7. 기술 스택
@@ -312,7 +323,11 @@ select/insert/update 정책을 걸 것. `exercises`는 전체 읽기 허용 + �
 - **Next.js 15 (App Router) + TypeScript**
 - **Tailwind CSS** — 모바일 우선
 - **Supabase** — Postgres + Auth + RLS
-- **Zustand** — 실행 화면의 타이머 상태만
+- **Zustand** — 온보딩 입력 상태(`src/store/onboarding.ts`, persist). ⚠️ 사인오프 대기
+  - 원래 문구는 "실행 화면의 타이머 상태만"이었다. 실제 구현은 반대가 됐다.
+  - 실행 화면 타이머는 Zustand를 쓰지 않는다. `src/lib/session-runner.ts`의 순수 상태 머신 +
+    화면단 `useState`로 만들었다. 경과 시간을 절대 시각으로 계산해야 해서 전역 스토어가 이득이 없었다.
+  - 대신 온보딩 4화면이 화면 간 입력을 넘겨야 해서 여기에 persist 스토어를 썼다.
 - **Vercel** 배포, **PWA** (manifest + service worker, 홈 화면 추가)
 - 날짜는 전부 `'YYYY-MM-DD'` 문자열 + UTC `Date`로만 다룬다 (엔진이 이미 그렇게 되어 있음)
 

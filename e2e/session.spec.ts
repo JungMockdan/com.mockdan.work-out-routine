@@ -2,17 +2,26 @@ import { test, expect, type Page } from '@playwright/test';
 
 const SHOT = 'docs/screenshots';
 
-/** 온보딩을 API로 건너뛰고 localStorage에 계획을 심는다. */
+/**
+ * 온보딩을 API로 건너뛰고 localStorage에 계획을 심는다.
+ * 날짜는 고정하지 않고 브라우저의 로컬 오늘(앱의 todayISO와 같은 계산)을 기준으로 잡는다.
+ * 고정 날짜는 그 기간이 지나는 순간 조용히 깨진다.
+ */
 async function seedPlan(page: Page) {
   await page.goto('/');
   const plan = await page.evaluate(async () => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const isoOf = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const now = new Date();
+    const end = new Date(now);
+    end.setDate(end.getDate() + 27);
     const res = await fetch('/api/plans', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         input: {
-          startDate: '2026-08-31',
-          endDate: '2026-09-27',
+          startDate: isoOf(now),
+          endDate: isoOf(end),
           daysPerWeek: 5,
           sessionMinutes: 40,
           concerns: ['forward_head', 'rounded_shoulder'],
