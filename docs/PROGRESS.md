@@ -267,3 +267,50 @@ Supabase 모드로 빌드·기동해 라우트를 직접 찔러본 결과도 정
 참조하므로, 테이블이 비어 있으면 **세션 완료 기록 저장이 FK 위반으로 실패한다.**
 
 위 2건이 해결되면 남은 절차: 시드 적재 → Supabase 모드 전 과정 검증.
+
+### 6단계 후속 2 — 시드 적재 완료 + RLS/FK 라이브 검증 17건 통과
+
+**service_role 키 교체 확인**: JWT `role=service_role`, 프로젝트 ref 일치, anon 키와 다른 값.
+
+**시드 적재 성공** — `node --env-file=.env.local scripts/seed-exercises.ts`
+
+```
+✅ 56종 적재 완료 (progression 7건 연결)
+```
+
+anon 키로 다시 읽어 번들 데이터와 대조했다. 전부 일치한다.
+
+| 항목 | DB | 번들 `src/data/exercises.ts` |
+|---|---|---|
+| 총 운동 수 | 56 | 56 |
+| progression 연결 | 7 | 7 |
+| 깨진 progression 참조 | 0 | — |
+
+페이즈별 분포: release 10 · mobility 10 · activation 14 · strength 16 · integration 6.
+
+**RLS·FK 라이브 검증 17건 전부 PASS.** 익명 로그인이 아직 꺼져 있어,
+admin API로 임시 email 사용자 2명(A·B)을 만들어 실제 사용자 JWT로 검증하고 끝나고 지웠다.
+(일회성 진단 스크립트이므로 저장소에 남기지 않았다.)
+
+- `profiles` — 본인 행 insert/select 성공. **B는 A의 프로필을 조회하면 0행.**
+- `plans`/`sessions` — 소유 계획을 경유한 insert 성공.
+- `sessions.elapsed_sec` — `2377`로 update되고 그대로 읽힌다(SPEC 편차 항목 실동작 확인).
+- `session_logs` — 시드된 `exercises`를 참조하는 insert 성공.
+  없는 `exercise_id`는 **409로 거부**된다(FK 작동 확인).
+- 격리 — B가 A의 `plans`/`sessions`/`session_logs`를 조회하면 전부 0행.
+- `plans_delete`(라운드2에서 추가한 정책) — **B는 A의 계획을 못 지운다(0행 삭제)**,
+  A는 본인 계획 삭제 성공, cascade로 `sessions`·`session_logs`까지 함께 삭제됨.
+
+즉 스키마·RLS·FK·cascade는 실제 프로젝트에서 의도대로 동작한다.
+
+**남은 블로커 1건 — Anonymous sign-ins이 여전히 꺼져 있다.**
+
+REST(`POST /auth/v1/signup`)와 앱이 실제로 쓰는 `supabase-js`의 `signInAnonymously()`
+양쪽 모두 `anonymous_provider_disabled`를 반환한다. 10초 간격 6회 재시도해도 동일했으므로
+설정 반영 지연이 아니다.
+
+→ 대시보드 **Authentication → Sign In / Providers → User Signups → Allow anonymous sign-ins**
+토글을 켜고 **Save**까지 눌러야 한다. (Email 관련 토글과 헷갈리기 쉽다.)
+
+이것만 켜지면 앱 전 과정 검증이 가능하다. 그 전까지 앱은 Supabase 모드에서
+"로그인에 실패했습니다: Anonymous sign-ins are disabled"를 보여준다.
