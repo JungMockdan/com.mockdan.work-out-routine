@@ -602,7 +602,7 @@ AI 생성 동작 대신 실제 물리치료사·병원 채널 영상을 쓰면 �
 
 ### 남은 것 — 사람이 해야 한다
 
-1. **후보 12건 검수** (`docs/MEDIA.md` 3-3 체크리스트). 통과분에 `reviewedBy: 'mjpark'` + `reviewedAt` 기입, 탈락분은 삭제.
+1. **후보 12건 검수** (`docs/MEDIA.md` 3-3 체크리스트). 통과분에 `reviewedBy: 'jmd'` + `reviewedAt` 기입, 탈락분은 삭제.
 2. **나머지 69종 후보 수집.** 파일럿 결과 페이즈별 검색 난이도가 크게 다르다 —
    `strength`·`mobility`는 한국어 검색으로 충분하지만, `release`·`integration`은
    명칭이 표준화돼 있지 않아 정확도가 낮다(상세는 `docs/MEDIA.md` 6절).

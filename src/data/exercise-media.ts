@@ -49,7 +49,7 @@
  */
 
 /** 검수자 화이트리스트. 추가는 의도적인 별도 편집이어야 한다. */
-export const REVIEWERS = ['mjpark'] as const;
+export const REVIEWERS = ['jmd'] as const;
 export type Reviewer = (typeof REVIEWERS)[number];
 
 export interface VideoEntry {
