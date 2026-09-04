@@ -231,3 +231,39 @@ Node v26.2.0에서 실행.
 
 이 둘이 끝나면 남은 건 자동화 가능하다:
 `node --env-file=.env.local scripts/seed-exercises.ts` (운동 56종 적재) → Supabase 모드 수동 검증.
+
+### 6단계 후속 (같은 날) — 스키마 적용 확인, 남은 블로커 2건
+
+사용자가 SQL Editor로 마이그레이션을 적용했다. **확인됨**:
+`exercises`/`profiles`/`plans`/`sessions`/`session_logs` 5개 테이블 전부 응답(200),
+`exercises`는 anon 키로도 읽힌다(RLS `exercises_read` 정상).
+
+Supabase 모드로 빌드·기동해 라우트를 직접 찔러본 결과도 정상이다:
+
+| 호출 | 결과 |
+|---|---|
+| `GET /api/plans/current` (세션 없음) | `401 {"error":"로그인이 필요합니다."}` |
+| `GET /api/sessions/[date]` (세션 없음) | `401` 동일 |
+| `POST /api/profile` (세션 없음) | `401` 동일 |
+| `POST /api/plans` `persist:false` | `200` — 엔진 실행 결과 정상 반환(인증 불필요 경로) |
+
+**남은 블로커 2건 — 둘 다 사람이 해야 한다:**
+
+1. **`.env.local`의 `SUPABASE_SERVICE_ROLE_KEY`가 anon 키와 같은 값이다.**
+   JWT payload를 디코드해 확인했다 — 두 키 모두 `role=anon`이고 문자열도 완전히 동일하다.
+   그래서 시드 적재가 `new row violates row-level security policy for table "exercises"`로 실패한다.
+   `exercises`에는 읽기 정책만 있고 쓰기 정책이 없어서, service_role로만 적재할 수 있다(의도된 설계).
+   → 대시보드 Project Settings → API → `service_role` 키를 복사해 `.env.local`의 해당 줄만 교체.
+   이 키는 시드 스크립트에서만 쓴다(런타임 코드 경로에는 없다). 앱 동작에는 영향 없음.
+
+2. **Anonymous sign-ins이 아직 꺼져 있다.**
+   `POST /auth/v1/signup`이 `422 anonymous_provider_disabled`를 반환한다.
+   → Authentication → Sign In / Providers → Anonymous sign-ins 활성화.
+   꺼져 있으면 앱은 "로그인에 실패했습니다: Anonymous sign-ins are disabled"를 보여준다
+   (`ensureAuth`가 던지고 `ErrorBox`가 받는다 — 에러 표면 자체는 정상 동작).
+
+**참고 — 시드가 왜 필요한가**: 런타임 엔진은 번들된 `src/data/exercises.ts`를 쓰고
+`exercises` 테이블을 읽지 않는다. 하지만 `session_logs.exercise_id`가 `exercises(id)`를
+참조하므로, 테이블이 비어 있으면 **세션 완료 기록 저장이 FK 위반으로 실패한다.**
+
+위 2건이 해결되면 남은 절차: 시드 적재 → Supabase 모드 전 과정 검증.
