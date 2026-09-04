@@ -20,7 +20,7 @@
 | 엔진 검증 스크립트 | ✅ 완료 (전 항목 통과) | `scripts/verify.ts` |
 | Next.js 앱 / 화면 | ❌ 미착수 | — |
 | 저장소(Supabase) | ❌ 미착수 | — |
-| 운동 영상·이미지 | ❌ 미착수 (`mediaRef` 전부 null) | — |
+| 운동 시연 영상 (유튜브 큐레이션) | 🟡 구조 완료 · 콘텐츠 진행 중 | `src/data/exercise-media.ts`, `src/components/ExerciseVideos.tsx` |
 
 검증 실행:
 
@@ -163,7 +163,7 @@ release(이완) → mobility(가동성) → activation(활성화) → strength(�
 | `cues` | 실행 화면에 표시할 코칭 포인트 (2~3개) |
 | `contraindications` | 금기 태그 |
 | `progressionId` | 상위 난이도 운동 id |
-| `mediaRef` | 영상/이미지 에셋 키 (현재 전부 null) |
+| `mediaRef` | **미사용 (전부 null 유지).** 시연 영상은 `src/data/exercise-media.ts` 매니페스트가 담당한다 — 아래 10.2 참조 |
 
 ### 4.2 시간 계산식
 ```
@@ -355,7 +355,8 @@ select/insert/update 정책을 걸 것. `exercises`는 전체 읽기 허용 + �
 - [ ] 같은 입력 + 같은 시드 → 같은 루틴 (재현성)
 - [ ] 실행 화면 타이머가 백그라운드 전환 후 복귀해도 **시간이 밀리지 않는다**
 - [ ] iPhone Safari / Android Chrome 실기기에서 온보딩→실행→완료 전 과정 동작
-- [ ] 운동 56종 전부 전문가 검수 완료(`reviewed_by`, `reviewed_at` 채워짐)
+- [ ] 운동 74종 전부 **처방** 전문가 검수 완료(`reviewed_by`, `reviewed_at` 채워짐)
+- [ ] 시연 영상 **검수** 완료(`src/data/exercise-media.ts`의 `reviewedBy`/`reviewedAt`) — 위 처방 검수와 별개 항목이다. 처방의 타당성과 "이 영상이 이 운동의 올바른 시연인가"는 다른 질문이다
 - [ ] 의학적 면책 고지가 온보딩과 세션 시작 화면에 노출
 
 ---
@@ -364,8 +365,12 @@ select/insert/update 정책을 걸 것. `exercises`는 전체 읽기 허용 + �
 
 1. **운동 DB는 검수 전이다.** `targets` 가중치와 `contraindications`는 개발자가 채운 초안이다.
    특히 고관절 불안정·경추 관련 운동은 전문가 검수 없이 오픈하면 안 된다.
-2. **`mediaRef`가 전부 null이다.** 영상/이미지 없이도 `cues` 텍스트로 동작은 하지만,
-   실사용에서는 시연 자료가 없으면 자세가 틀어진다. 콘텐츠 확보를 병행할 것.
+2. **시연 영상은 `mediaRef`가 아니라 별도 매니페스트로 관리한다** (`src/data/exercise-media.ts`).
+   `plan-service.ts`가 `Exercise` 객체 전체를 세션 `blocks` 스냅샷으로 동결하므로(4.3의 불변성 요구),
+   `mediaRef`에 영상을 넣으면 ① 이미 계획을 만든 사용자는 계획이 끝날 때까지 영상을 못 보고
+   ② 영상이 삭제·비공개로 바뀌어도 **이미 만들어진 계획의 죽은 링크를 고칠 수 없다.**
+   매니페스트는 한 줄만 고치면 전원에게 즉시 반영된다. `mediaRef`는 스키마 호환을 위해 null로 남긴다.
+   현황·규칙·검수 절차는 `docs/MEDIA.md`.
 3. **`progressionId`가 일부 운동에만 있다.** 현재 2주차 과부하는 볼륨 +12%로 처리하고 있고,
    운동 자체를 상위 버전으로 교체하는 로직은 아직 엔진에 넣지 않았다 (필요 시 확장).
 4. **요일 패턴이 고정이다.** 사용자가 직접 요일을 고르게 하려면 `weekdayPattern()`을

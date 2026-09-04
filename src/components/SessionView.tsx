@@ -10,6 +10,7 @@ import {
   type SessionPlan,
 } from '@/lib/engine';
 import { EQUIPMENT_LABEL, FOCUS_LABEL } from '@/lib/constants';
+import { ExerciseVideos } from './ExerciseVideos';
 import { cx } from './ui';
 
 const PHASE_COLOR: Record<Block['phase'], string> = {
@@ -61,11 +62,18 @@ export function ExerciseCard({
   item,
   index,
   showCues = true,
+  showMedia = showCues,
   status,
 }: {
   item: PlannedExercise;
   index?: number;
   showCues?: boolean;
+  /**
+   * 기본값이 showCues인 것은 의도다. 영상은 cues를 대체하지 않는다 —
+   * 큐가 꺼진 화면(미리보기)에서 영상만 남으면 폼 지도의 유일한 전달 수단이 되고,
+   * 스크린리더 사용자나 영상을 못 여는 상황에서 지도가 통째로 사라진다.
+   */
+  showMedia?: boolean;
   status?: 'done' | 'skipped' | 'current';
 }) {
   const ex = item.exercise;
@@ -104,6 +112,7 @@ export function ExerciseCard({
               ))}
             </ul>
           )}
+          {showMedia && <ExerciseVideos exerciseId={ex.id} nameKo={ex.nameKo} />}
         </div>
         {status === 'done' && <span className="text-emerald-600" aria-label="완료">✓</span>}
         {status === 'skipped' && <span className="text-xs text-muted">건너뜀</span>}
@@ -117,10 +126,13 @@ export function SessionBlocks({
   session,
   defaultOpen = 'first',
   showCues = true,
+  showMedia = showCues,
 }: {
   session: SessionPlan;
   defaultOpen?: 'all' | 'first' | 'none';
   showCues?: boolean;
+  /** ExerciseCard와 같은 이유로 기본값이 showCues다. */
+  showMedia?: boolean;
 }) {
   const [open, setOpen] = useState<Set<string>>(() => {
     if (defaultOpen === 'all') return new Set(session.blocks.map((b) => b.phase));
@@ -165,7 +177,7 @@ export function SessionBlocks({
               <div className="grid gap-2 border-t border-line bg-surface p-3">
                 {b.items.length === 0 && <p className="text-sm text-muted">이 페이즈에 배정된 운동이 없습니다.</p>}
                 {b.items.map((it, i) => (
-                  <ExerciseCard key={it.exercise.id} item={it} index={i + 1} showCues={showCues} />
+                  <ExerciseCard key={it.exercise.id} item={it} index={i + 1} showCues={showCues} showMedia={showMedia} />
                 ))}
               </div>
             )}

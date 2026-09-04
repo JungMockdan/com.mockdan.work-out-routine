@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { stubYouTubeThumbs } from './ytimg';
 import { firstSessionISO, formatKo, shiftISO } from './dates';
 
 const SHOT = 'docs/screenshots';
@@ -10,6 +11,11 @@ async function shot(page: Page, name: string) {
 test.describe('온보딩 → 미리보기', () => {
   // localStorage 저장소를 직접 단정하는 스위트 — Supabase 모드에서는 supabase.spec.ts가 대신 돈다
   test.skip(process.env.E2E_SUPABASE === '1', 'localStorage 모드 전용');
+
+  // 유튜브 썸네일을 고정 이미지로 가로챈다 — 커밋되는 스크린샷의 결정성 유지 (e2e/ytimg.ts)
+  test.beforeEach(async ({ page }) => {
+    await stubYouTubeThumbs(page);
+  });
 
   test('목표 선택·우선순위·프로필·기간 → buildPlan 결과 렌더링', async ({ page }) => {
     await page.goto('/');

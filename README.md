@@ -38,6 +38,9 @@ node --env-file=.env.local scripts/seed-exercises.ts
 ```bash
 npm run verify         # 엔진: 40분 정확도·다양성·금기 제외·재현성
 npm run verify:runner  # 실행 화면 상태 머신: 절대 시각 보정·일시정지·건너뛰기
+npm run verify:gym     # 헬스장 모드: 기구 조건·홈 사용자 격리
+npm run verify:media   # 시연 영상: 검수 게이트·매니페스트 무결성
+npm run verify:media -- --check-links   # + 유튜브 링크 생존 확인 (네트워크)
 npm run typecheck
 npm run test:e2e       # Playwright (모바일 뷰포트, docs/screenshots/ 갱신)
 ```
@@ -60,5 +63,7 @@ e2e/                     Playwright 시나리오
 ## 주의
 
 - **운동 DB는 전문가(물리치료사/교정운동 전문가) 검수 전이다.** 오픈 전 검수 필수 (SPEC 9·10).
-- `mediaRef`(운동 영상/이미지)는 전부 null — 텍스트 큐로 동작하며 콘텐츠 확보가 필요하다.
+- **시연 영상은 검수를 통과한 것만 노출된다.** 후보를 `src/data/exercise-media.ts`에 넣어도
+  `reviewedBy`/`reviewedAt`가 없으면 앱에 나오지 않는다. 현황은 `npm run verify:media`,
+  제작·검수 절차는 `docs/MEDIA.md`. (`Exercise.mediaRef`는 미사용 — 이유는 SPEC 10.2)
 - 의학적 진단·치료가 아니다. 면책 고지는 온보딩 마지막·세션 시작 화면에 노출된다.

@@ -75,6 +75,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // ⚠️ 이 목록에 미디어(영상)를 추가하지 말 것.
+  // caches.match()는 Range 헤더를 무시하고 전체 200을 돌려주는데, Safari는 미디어에 206을 요구한다.
+  // 유튜브 임베드·썸네일은 크로스오리진이라 위 origin 가드에서 이미 빠져나간다.
   if (
     url.pathname.startsWith('/_next/static/') ||
     url.pathname.startsWith('/icons/') ||

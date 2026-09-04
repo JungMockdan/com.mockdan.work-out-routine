@@ -13,6 +13,7 @@
     "test:e2e": "playwright test",
     "verify:runner": "node scripts/verify-runner.ts",
     "verify:gym": "node scripts/verify-gym.ts",
+    "verify:media": "node scripts/verify-media.ts",
     "verify:seed": "node --env-file=.env.local scripts/verify-seed.ts"
   },
   "devDependencies": {

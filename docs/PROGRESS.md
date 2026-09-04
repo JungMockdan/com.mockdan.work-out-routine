@@ -531,3 +531,79 @@ DB 기준 phase 분포: release 10 · mobility 10 · activation 15 · strength 3
    `style` 축(맨몸/헬스장/필라테스/요가/스트레칭)과 phase 예산 프로파일은 미착수.
    `phaseBudgets()`가 concern에서만 예산을 파생시키므로, 모드가 strength 비중을
    조정하려면 이 함수에 프로파일 인자를 받게 고쳐야 한다.
+
+---
+
+## 2026-09-04 — 시연 영상 도입 (유튜브 큐레이션) · 구조 완료, 콘텐츠 진행 중
+
+CapCut Pro로 영상을 직접 제작하는 안을 먼저 검토했으나 **유튜브 큐레이션으로 전환**했다.
+AI 생성 동작 대신 실제 물리치료사·병원 채널 영상을 쓰면 검수 질문이
+"AI가 해부학적으로 가능한 관절 각도를 그렸나"에서 "이 영상이 이 운동에 맞나"로 바뀐다.
+제작 부담·저장 용량·egress가 전부 0이 되고, Storage 이전·sha256 재서명·MP4 규격 검사가 사라진다.
+
+### 설계 판단 3가지
+
+**① `Exercise.mediaRef`를 쓰지 않는다.** `plan-service.ts`가 `Exercise` 객체 전체를
+`StoredSession.blocks` 스냅샷으로 동결하므로(SPEC 4.3), `mediaRef`에 링크를 넣으면
+ⓐ 이미 계획을 만든 사용자는 계획이 끝날 때까지 영상을 못 보고
+ⓑ **영상이 삭제돼도 이미 만들어진 계획의 죽은 링크를 고칠 수 없다.**
+유튜브는 링크 로트가 필연이므로 ⓑ가 결정적이다. → 별도 매니페스트 `src/data/exercise-media.ts`.
+`mediaRef`는 스키마 호환을 위해 null로 남기고, `verify-media.ts`가 트립와이어로 단정한다.
+
+**② 실행 화면에는 넣지 않는다 (코드 변경 0).** `useWakeLock`의 iOS 폴백이 무음 오디오를
+`volume = 0.01`로 **재생 중**이라(muted가 아니다), 소리 있는 유튜브가 오디오 세션을 뺏으면
+40분 세션 도중 화면 꺼짐 방지가 조용히 해제된다. 광고가 루틴 중간에 도는 문제,
+`transition` 스텝이 iPhone 13에서 이미 26px 넘치는 문제가 그다음이다.
+→ `session/[date]/page.tsx`·`session-runner.ts`·`useWakeLock.ts` 전부 무수정.
+
+**③ `showMedia` 기본값을 `showCues`에 묶었다.** 미리보기는 `showCues={false}`인데
+거기에 영상만 남으면 영상이 폼 지도의 유일한 전달 수단이 된다(스크린리더·영상 미재생 시 지도 소실).
+규칙을 주석이 아니라 기본값으로 강제했다.
+
+### 만든 것
+
+- `src/data/exercise-media.ts` — 매니페스트 + `REVIEWERS` 화이트리스트 + `exerciseVideos()` resolver.
+  **`reviewedBy`(REVIEWERS 멤버) + `reviewedAt`이 둘 다 있어야 노출**된다. 값 import가 없어 Node가
+  확장자 없는 경로를 만나지 않는다(`exercises.ts`가 `import type`만 쓰는 것과 같은 이유).
+- `src/components/ExerciseVideos.tsx` — 썸네일 카드 목록 + 네이티브 `<dialog>` 라이트박스
+  (포커스 트랩·Escape 무료). iframe은 **열린 동안에만 마운트**한다 — 남기면 오디오가 계속 재생된다.
+  임베드 차단 영상용 "유튜브에서 열기" 탈출구 상시 노출. 채널명 표시(저작권 의무).
+  `youtube-nocookie.com` 임베드, `i.ytimg.com` 썸네일, 순수 `<img>`(next.config.ts 무수정).
+- `scripts/verify-media.ts` (`npm run verify:media`) — 오프라인 무결성 13종 +
+  `--check-links`로 유튜브 oEmbed 생존 확인. **게이트를 데이터가 아니라 resolver 실행으로 단정**한다.
+- `e2e/ytimg.ts` + 3개 스펙에 `page.route` 스텁, `e2e/media.spec.ts` 2건.
+- `docs/MEDIA.md` — 검색·검수·링크 로트 대응·저작권 절차서.
+
+### 확인 방법
+
+| 검증 | 결과 |
+|---|---|
+| `verify` · `verify:runner` · `verify:gym` | 전 항목 PASS (회귀) |
+| `verify:media` | 전 항목 PASS · 커버리지 0/74 검수완료, 후보 5종 12건 |
+| `verify:media -- --check-links` | 12건 전부 생존·임베드 가능, 제목/채널 드리프트 0 |
+| `tsc --noEmit` · `next build` | 통과 (17 routes) |
+| `npx playwright test` | **4 passed** (media 게이트 포함) |
+| `E2E_SUPABASE=1 npx playwright test` | **1 passed** |
+
+**게이트를 실제로 증명한 방법**: 임시로 영상 1건만 승인해 돌렸더니
+승인분은 렌더되고 미검수 11건은 차단된 상태가 같은 페이지에 공존하며 두 테스트 모두 통과했다.
+확인 후 임시 승인은 되돌렸다(현재 매니페스트에 `reviewedAt` 0건).
+
+`e2e/media.spec.ts`의 게이트 테스트는 **계획의 "수동 확인 ①"을 자동화한 것**이다 —
+후보가 대기 중인 지금 상태에서 실제로 화면에 아무것도 안 나오는지 단정한다.
+
+### 알아둘 것
+
+- **스크린샷은 이전부터 비결정적이다.** 같은 코드로 두 번 돌려 `03-profile.png`의 md5가 달랐다.
+  ytimg 스텁은 영상이 들어온 뒤의 *추가* churn과 네트워크 의존을 막는 것이지,
+  기존 흔들림을 고치지는 않는다. 원인은 별도 조사가 필요하다.
+- **Playwright 번들 Chromium에는 H.264 등 독점 코덱이 없다.** `media.spec.ts`가 DOM 속성만
+  단정하는 이유다. 실제 재생 확인은 실기기 몫이다.
+
+### 남은 것 — 사람이 해야 한다
+
+1. **후보 12건 검수** (`docs/MEDIA.md` 3-3 체크리스트). 통과분에 `reviewedBy: 'mjpark'` + `reviewedAt` 기입, 탈락분은 삭제.
+2. **나머지 69종 후보 수집.** 파일럿 결과 페이즈별 검색 난이도가 크게 다르다 —
+   `strength`·`mobility`는 한국어 검색으로 충분하지만, `release`·`integration`은
+   명칭이 표준화돼 있지 않아 정확도가 낮다(상세는 `docs/MEDIA.md` 6절).
+3. **실기기 확인**: 라이트박스를 닫은 뒤 소리가 멈추는지(iframe 언마운트).

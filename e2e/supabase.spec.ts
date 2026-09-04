@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { stubYouTubeThumbs } from './ytimg';
 import { readFileSync } from 'node:fs';
 import { firstSessionISO, formatKo, shiftISO } from './dates';
 
@@ -65,6 +66,11 @@ async function shot(page: Page, name: string) {
 
 test.describe('Supabase 모드 — 온보딩부터 완료 기록까지', () => {
   test.skip(!SUPABASE_MODE, 'E2E_SUPABASE=1 일 때만 실행 (기본은 localStorage 모드 스위트)');
+
+  // 유튜브 썸네일을 고정 이미지로 가로챈다 — 커밋되는 스크린샷의 결정성 유지 (e2e/ytimg.ts)
+  test.beforeEach(async ({ page }) => {
+    await stubYouTubeThumbs(page);
+  });
 
   const created: string[] = [];
 
